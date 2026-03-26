@@ -11,13 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('booking_reschedules', function (Blueprint $table) {
+        Schema::create('booking_cancelled', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fk_booking_detail_id')->constrained('booking_details')->onDelete('cascade');
             $table->foreignId('fk_field_closure_id')->nullbale()->constrained('field_closures')->onDelete('cascade');
-            $table->date('old_date');
-            $table->date('new_date');
             $table->text('reason')->nullable();
+            $table->timestamp('cancle_date');
+            $table->enum('status_refund', ['refundable', 'non-refundable']);
             $table->timestamps();
         });
     }
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('booking_reschedules');
+        Schema::dropIfExists('booking_cancles');
     }
 };
