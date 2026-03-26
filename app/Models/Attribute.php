@@ -10,7 +10,7 @@ class Attribute extends Model
     protected $connection = "mysql_joglo66_app";
     protected $table = "attributes";
     public $fillable = [
-        "fk_field_id", "name", "stock", "price"
+        "fk_field_id", "name", "stock", "price_hour"
     ];
 
     public function field(): BelongsTo

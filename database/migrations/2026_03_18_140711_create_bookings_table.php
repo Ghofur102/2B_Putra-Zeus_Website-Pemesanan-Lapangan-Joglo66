@@ -13,12 +13,9 @@ return new class extends Migration
     {
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
             $table->foreignId('fk_user_id')->constrained('users')->onDelete('cascade');
             $table->date('booking_date');
-            $table->enum('status', ['pending payment', 'completed', 'expired'])->default('pending payment')->index();
-            $table->unsignedInteger('total_price');
-            $table->unsignedInteger('refund_amount')->default(0);
+            $table->enum('status_booking', ['active', 'some cancelled', 'cancelled', 'finish']);
             $table->timestamps();
         });
     }
