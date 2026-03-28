@@ -11,7 +11,7 @@ class FieldClosure extends Model
     protected $connection = "mysql_joglo66_app";
     protected $table = "field_closures";
     public $fillable = [
-        "fk_field_id", "start_time", "end_time", "reason"
+        "fk_field_id", "field_closure_start_time", "field_closure_end_time", "reason"
     ];
 
     public function field(): BelongsTo

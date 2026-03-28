@@ -11,7 +11,7 @@ class BookingDetail extends Model
     protected $connection = "mysql_joglo66_app";
     protected $table = "booking_details";
     public $fillable = [
-        "fk_booking_id", "fk_field_id", "start_time", "end_time", "play_date", "price", "status"
+        "fk_booking_id", "fk_field_id", "start_play_time", "end_play_time", "play_date", "price", "status"
     ];
 
     public function booking(): BelongsTo

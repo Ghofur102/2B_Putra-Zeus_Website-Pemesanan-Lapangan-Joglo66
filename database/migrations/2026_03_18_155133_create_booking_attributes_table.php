@@ -15,8 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('fk_booking_id')->constrained('bookings')->onDelete('cascade');
             $table->foreignId('fk_attribute_id')->constrained('attributes');
-            $table->timestamp('start_time');
-            $table->timestamp('return_time');
+            $table->timestamp('start_booking_attribute_time');
+            $table->timestamp('return_booking_attribute_time');
             $table->unsignedInteger('quantity');
             $table->unsignedInteger('price');
             $table->unsignedInteger('total');

@@ -15,11 +15,11 @@ return new class extends Migration
             $table->id();
             $table->foreignId('fk_booking_id')->constrained('bookings')->onDelete('cascade');
             $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
-            $table->time('start_time');
-            $table->time('end_time');
+            $table->time('start_play_time');
+            $table->time('end_play_time');
             $table->date('play_date');
             $table->unsignedBigInteger('price');
-            $table->enum('status', [ 'cancelled from admin', 'reschedule from admin', 'cancelled from tenant', 'reschedule from tenant']);
+            $table->enum('status', ['active', 'waiting', 'finish', 'cancelled from admin', 'reschedule from admin', 'cancelled from tenant', 'reschedule from tenant', "field close"]);
             $table->timestamps();
         });
     }

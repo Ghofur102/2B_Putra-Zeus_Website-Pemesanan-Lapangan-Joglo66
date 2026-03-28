@@ -14,8 +14,8 @@ return new class extends Migration
         Schema::create('field_closures', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
-            $table->dateTime('start_time');
-            $table->dateTime('end_time');
+            $table->dateTime('field_closure_start_time');
+            $table->dateTime('field_closure_end_time');
             $table->text('reason');
             $table->timestamps();
         });

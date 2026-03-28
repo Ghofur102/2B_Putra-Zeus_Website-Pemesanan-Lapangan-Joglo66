@@ -11,7 +11,7 @@ class BookingAttribute extends Model
     protected $connection = "mysql_joglo66_app";
     protected $table = "booking_attributes";
     public $fillable = [
-        "fk_booking_id", "fk_attribute_id", "start_time", "return_time", "quantity", "price", "total", "reason"
+        "fk_booking_id", "fk_attribute_id", "start_booking_attribute_time", "return_booking_attribute_time", "quantity", "price", "total", "reason"
     ];
 
     public function booking(): BelongsTo
