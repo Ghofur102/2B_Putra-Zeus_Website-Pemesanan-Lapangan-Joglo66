@@ -48,6 +48,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -56,8 +57,16 @@ class User extends Authenticatable
     {
         return $this->hasMany(Booking::class, 'fk_user_id', 'id');
     }
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class, 'fk_user_id', 'id');
+    }
     public function logs(): HasMany
     {
         return $this->hasMany(Log::class, 'fk_user_id', 'id');
+    }
+    public function fieldAdmin(): HasMany
+    {
+        return $this->hasMany(FieldAdmin::class, 'fk_user_id', 'id');
     }
 }

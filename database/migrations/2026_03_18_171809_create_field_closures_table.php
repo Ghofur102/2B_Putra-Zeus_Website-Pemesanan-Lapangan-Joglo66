@@ -11,12 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('attributes', function (Blueprint $table) {
+        Schema::create('field_closures', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
-            $table->string('name', 100);
-            $table->unsignedInteger('stock')->default(0);
-            $table->unsignedInteger('price_hour');
+            $table->dateTime('field_closure_start_time');
+            $table->dateTime('field_closure_end_time');
+            $table->text('reason');
             $table->timestamps();
         });
     }
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('attributes');
+        Schema::dropIfExists('field_closures');
     }
 };

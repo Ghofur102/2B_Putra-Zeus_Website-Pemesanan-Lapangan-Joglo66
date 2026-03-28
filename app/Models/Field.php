@@ -10,7 +10,7 @@ class Field extends Model
     protected $connection = "mysql_joglo66_app";
     protected $table = "fields";
     public $fillable = [
-        "name", "description", "image_url", "category"
+        "name", "description", "image_url", "category", "start_time", "close_time"
     ];
 
     public function fieldPrices(): HasMany
@@ -21,9 +21,9 @@ class Field extends Model
     {
         return $this->hasMany(Attribute::class, 'fk_filed_id', 'id');
     }
-    public function bookings(): HasMany
+    public function bookingDetail(): HasMany
     {
-        return $this->hasMany(Booking::class, 'fk_field_id', 'id');
+        return $this->hasMany(BookingDetail::class, 'fk_booking_detail_id', 'id');
     }
     public function expenses(): HasMany
     {
@@ -32,5 +32,9 @@ class Field extends Model
     public function financialReport(): HasMany
     {
         return $this->hasMany(FinancialReport::class, 'fk_field_id', 'id');
+    }
+    public function fieldAdmin(): HasMany
+    {
+        return $this->hasMany(FieldAdmin::class, 'fk_field_id', 'id');
     }
 }
