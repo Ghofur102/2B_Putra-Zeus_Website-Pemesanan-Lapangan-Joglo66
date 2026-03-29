@@ -3,6 +3,14 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Booking;
+use App\Models\BookingDetail;
+use App\Models\Payment;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use App\Enums\PaymentTypeEnum;
+use App\Enums\StatusDetailBookingEnum;
+use Illuminate\Support\Facades\Gate;
 
 class PaymentsController extends Controller
 {
@@ -28,6 +36,63 @@ class PaymentsController extends Controller
     public function store(Request $request)
     {
         //
+    }
+
+    public function storeCashPayment(Request $request)
+    {
+        $request->validate([
+            'fk_booking_id' => ['required', 'exists:bookings,id'],
+            'fk_booking_detail_id' => ['nullable', 'exists:detail_bookings,id'],
+            'amount' => ['required', 'numeric', 'min:0'],
+            'payment_type' => ['required', Rule::enum(PaymentTypeEnum::class)]
+        ]);
+
+        $booking = Booking::findOrFail($request->fk_booking_id);
+
+        Gate::authorize('create', [Payment::class, $booking->details->pluck('fk_field_id')->toArray()]);
+
+        // Jika payment detail spesifik, pastikan termasuk dalam booking
+        if ($request->fk_booking_detail_id) {
+            $detail = BookingDetail::where('id', $request->fk_booking_detail_id)
+                ->where('fk_booking_id', $booking->id)
+                ->first();
+
+            if (!$detail) {
+                return response()->json([
+                    'status'=> 'error',
+                    'message_error' => 'Detail booking tidak valid untuk booking ini.'
+                ], 400);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            $payment = Payment::create([
+                'fk_booking_id' => $booking->id,
+                'fk_booking_detail_id' => $request->fk_booking_detail_id,
+                'reference_id' => null,
+                'payment_url' => null,
+                'payment_type' => $request->payment_type,
+                'method' => 'cash',
+                'amount' => $request->amount,
+                'status' => StatusDetailBookingEnum::Success,
+                'paid_at' => now()
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'data_payment' => $payment
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'status' => 'error',
+                'message_error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
