@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('fk_user_id')->constrained('users')->onDelete('cascade');
             $table->date('booking_date');
-            $table->enum('status_booking', ['active', 'some cancelled', 'cancelled', 'finish', 'waiting'])->default('waiting');
+            $table->enum('status_booking', ['active', 'finish', 'waiting'])->default('waiting');
             $table->timestamps();
         });
     }

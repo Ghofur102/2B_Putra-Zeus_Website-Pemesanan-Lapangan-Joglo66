@@ -27,9 +27,11 @@ class PaymentPolicy
     /**
      * Determine whether the user can create models.
      */
-    public function create(User $user): bool
+    public function create(User $user, array $fieldId): bool
     {
-        return false;
+        $uniqueFieldsId = array_unique($fieldId);
+        $countOwned = $user->fieldAdmin()->whereIn('fk_field_id', $uniqueFieldsId)->count();
+        return $user->role == "tenant" || count($uniqueFieldsId) === $countOwned;
     }
 
     /**
