@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('booking_reschedules', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fk_booking_detail_id')->constrained('booking_details')->onDelete('cascade');
-            $table->foreignId('fk_field_closure_id')->nullbale()->constrained('field_closures')->onDelete('cascade');
+            $table->foreignId('fk_field_closure_id')->nullabale()->constrained('field_closures')->onDelete('cascade');
             $table->date('old_date');
             $table->date('new_date');
             $table->text('reason')->nullable();
