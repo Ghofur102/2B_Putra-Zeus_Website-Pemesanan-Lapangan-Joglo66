@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Payment;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class PaymentPolicy
 {
@@ -31,7 +30,8 @@ class PaymentPolicy
     {
         $uniqueFieldsId = array_unique($fieldId);
         $countOwned = $user->fieldAdmin()->whereIn('fk_field_id', $uniqueFieldsId)->count();
-        return $user->role == "tenant" || count($uniqueFieldsId) === $countOwned;
+
+        return $user->role === 'tenant' || count($uniqueFieldsId) === $countOwned;
     }
 
     /**

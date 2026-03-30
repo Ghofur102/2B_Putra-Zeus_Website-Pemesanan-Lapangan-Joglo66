@@ -7,19 +7,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BookingCancle extends Model
 {
-    protected $connection = "mysql_joglo66_app";
-    protected $table = "booking_cancelled";
-    public $fillable = [
-        "fk_booking_detail_id", "fk_field_closure_id", "reason", "cancle_date", "status_refund"
+    protected $connection = 'mysql_joglo66_app';
+
+    protected $table = 'booking_cancelled';
+
+    protected $fillable = [
+        'fk_booking_detail_id', 'fk_field_closure_id', 'reason', 'cancle_date', 'status_refund',
     ];
 
     public function bookingDetail(): BelongsTo
     {
         return $this->belongsTo(BookingDetail::class, 'fk_booking_detail_id', 'id');
     }
+
     public function fieldClosure(): BelongsTo
     {
         return $this->belongsTo(FieldClosure::class, 'fk_field_closure_id', 'id');
     }
-
 }

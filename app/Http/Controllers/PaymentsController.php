@@ -2,41 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Enums\PaymentTypeEnum;
+use App\Enums\StatusDetailBookingEnum;
 use App\Models\Booking;
 use App\Models\BookingDetail;
 use App\Models\Payment;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use App\Enums\PaymentTypeEnum;
-use App\Enums\StatusDetailBookingEnum;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class PaymentsController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        //
-    }
+    public function index() {}
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        //
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
-    {
-        //
-    }
+    public function store(Request $request) {}
 
     public function storeCashPayment(Request $request)
     {
@@ -44,7 +35,7 @@ class PaymentsController extends Controller
             'fk_booking_id' => ['required', 'exists:bookings,id'],
             'fk_booking_detail_id' => ['nullable', 'exists:detail_bookings,id'],
             'amount' => ['required', 'numeric', 'min:0'],
-            'payment_type' => ['required', Rule::enum(PaymentTypeEnum::class)]
+            'payment_type' => ['required', Rule::enum(PaymentTypeEnum::class)],
         ]);
 
         $booking = Booking::findOrFail($request->fk_booking_id);
@@ -57,10 +48,10 @@ class PaymentsController extends Controller
                 ->where('fk_booking_id', $booking->id)
                 ->first();
 
-            if (!$detail) {
+            if (! $detail) {
                 return response()->json([
-                    'status'=> 'error',
-                    'message_error' => 'Detail booking tidak valid untuk booking ini.'
+                    'status' => 'error',
+                    'message_error' => 'Detail booking tidak valid untuk booking ini.',
                 ], 400);
             }
         }
@@ -76,21 +67,22 @@ class PaymentsController extends Controller
                 'method' => 'cash',
                 'amount' => $request->amount,
                 'status' => StatusDetailBookingEnum::Success,
-                'paid_at' => now()
+                'paid_at' => now(),
             ]);
 
             DB::commit();
 
             return response()->json([
                 'status' => 'success',
-                'data_payment' => $payment
+                'data_payment' => $payment,
             ], 201);
 
         } catch (\Exception $e) {
             DB::rollBack();
+
             return response()->json([
                 'status' => 'error',
-                'message_error' => $e->getMessage()
+                'message_error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -98,32 +90,20 @@ class PaymentsController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
-    {
-        //
-    }
+    public function show(string $id) {}
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
-    {
-        //
-    }
+    public function edit(string $id) {}
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+    public function update(Request $request, string $id) {}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
-    {
-        //
-    }
+    public function destroy(string $id) {}
 }

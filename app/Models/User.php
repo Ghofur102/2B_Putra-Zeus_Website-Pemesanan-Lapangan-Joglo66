@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -10,7 +11,7 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -24,10 +25,10 @@ class User extends Authenticatable
         'password',
         'phone',
         'team_name',
-        'role'
+        'role',
     ];
 
-    protected $connection = "mysql_joglo66_app";
+    protected $connection = 'mysql_joglo66_app';
 
     /**
      * The attributes that should be hidden for serialization.
@@ -57,14 +58,17 @@ class User extends Authenticatable
     {
         return $this->hasMany(Booking::class, 'fk_user_id', 'id');
     }
+
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class, 'fk_user_id', 'id');
     }
+
     public function logs(): HasMany
     {
         return $this->hasMany(Log::class, 'fk_user_id', 'id');
     }
+
     public function fieldAdmin(): HasMany
     {
         return $this->hasMany(FieldAdmin::class, 'fk_user_id', 'id');

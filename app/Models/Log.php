@@ -8,8 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Log extends Model
 {
     public $timestamps = false;
-    protected $connection = "mysql_joglo66_app";
-    protected $table = "logs";
+
+    protected $connection = 'mysql_joglo66_app';
+
+    protected $table = 'logs';
+
     protected $fillable = [
         'fk_user_id',
         'action',

@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FieldPrice extends Model
 {
-    protected $connection = "mysql_joglo66_app";
-    protected $table = "field_prices";
-    public $fillable = [
-        "fk_field_id", "start_time", "end_time", "day_type", "price"
+    protected $connection = 'mysql_joglo66_app';
+
+    protected $table = 'field_prices';
+
+    protected $fillable = [
+        'fk_field_id', 'start_time', 'end_time', 'day_type', 'price',
     ];
 
     public function field(): BelongsTo

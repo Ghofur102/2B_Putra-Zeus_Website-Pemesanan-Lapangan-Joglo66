@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
             $table->integer('year');
-            $table->enum('month', ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]);
+            $table->enum('month', ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']);
             $table->unsignedInteger('total_income');
             $table->unsignedInteger('total_expense');
             $table->unsignedInteger('net_profit');

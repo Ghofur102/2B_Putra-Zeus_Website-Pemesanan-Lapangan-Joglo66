@@ -8,16 +8,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BookingAttribute extends Model
 {
-    protected $connection = "mysql_joglo66_app";
-    protected $table = "booking_attributes";
-    public $fillable = [
-        "fk_booking_id", "fk_attribute_id", "start_booking_attribute_time", "return_booking_attribute_time", "quantity", "price", "total", "reason"
+    protected $connection = 'mysql_joglo66_app';
+
+    protected $table = 'booking_attributes';
+
+    protected $fillable = [
+        'fk_booking_id', 'fk_attribute_id', 'start_booking_attribute_time', 'return_booking_attribute_time', 'quantity', 'price', 'total', 'reason',
     ];
 
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class, 'fk_booking_id', 'id');
     }
+
     public function attribute(): BelongsTo
     {
         return $this->belongsTo(Attribute::class, 'fk_attribute_id', 'id');

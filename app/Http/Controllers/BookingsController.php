@@ -2,32 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
+use App\Enums\StatusBookingEnum;
 use App\Models\Booking;
 use App\Models\BookingDetail;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
-use App\Enums\StatusBookingEnum;
 
 class BookingsController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        //
-    }
+    public function index() {}
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-        //
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
@@ -43,15 +37,16 @@ class BookingsController extends Controller
             'details.*.play_date' => ['required', 'date'],
             'details.*.start_play_time' => ['required', Rule::date()->format('H:i')],
             'details.*.end_play_time' => ['required', Rule::date()->format('H:i'),
-            function ($attribute, $value, $fail) use ($request) {
-                $index = explode(".", $attribute)[1];
-                $start_time = $request->input(`details.{$index}.start_play_time`);
+                function ($attribute, $value, $fail) use ($request) {
+                    $index = explode('.', $attribute)[1];
+                    $start_time = $request->input('details.{' + $index + '}.start_play_time');
 
-                if($start_time && $value <= $start_time) {
-                    $fail("End play time is not valid, must bigger than start play time!");
-                }
-            }],
-            'details.*.price' => ['required', 'numeric', 'min:0']
+                    if ($start_time && $value <= $start_time) {
+                        $fail('End play time is not valid, must bigger than start play time!');
+                    }
+                },
+            ],
+            'details.*.price' => ['required', 'numeric', 'min:0'],
         ]);
 
         $user = Auth::user();
@@ -66,23 +61,12 @@ class BookingsController extends Controller
 
             foreach ($request->details as $detail) {
 
-                $isConflict = BookingDetail::where('fk_field_id', $detail['fk_field_id'])
-                    ->where('play_date', $detail['play_date'])
-                    ->where(function ($query) use ($detail) {
-                        $query->whereBetween('start_play_time', [$detail['start_play_time'], $detail['end_play_time']])
-                              ->orWhereBetween('end_play_time', [$detail['start_play_time'], $detail['end_play_time']])
-                              ->orWhere(function ($q) use ($detail) {
-                                  $q->where('start_play_time', '<=', $detail['start_play_time'])
-                                    ->where('end_play_time', '>=', $detail['end_play_time']);
-                              });
-                    })
-                    ->exists();
-
-                if ($isConflict) {
+                if (BookingDetail::isBookingDetailConflict($detail)) {
                     DB::rollBack();
+
                     return response()->json([
-                        'status'=> 'error',
-                        'message_error' => 'Jadwal bentrok pada salah satu lapangan'
+                        'status' => 'error',
+                        'message_error' => 'Jadwal bentrok pada salah satu lapangan',
                     ], 400);
                 }
 
@@ -93,7 +77,7 @@ class BookingsController extends Controller
                     'end_play_time' => $detail['end_play_time'],
                     'play_date' => $detail['play_date'],
                     'price' => $detail['price'],
-                    'status' => 'waiting'
+                    'status' => 'waiting',
                 ]);
             }
 
@@ -101,7 +85,7 @@ class BookingsController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data' => $booking->load('details')
+                'data' => $booking->load('details'),
             ], 201);
 
         } catch (\Exception $e) {
@@ -109,41 +93,28 @@ class BookingsController extends Controller
 
             return response()->json([
                 'status' => 'error',
-                'message_error' => $e->getMessage()
+                'message_error' => $e->getMessage(),
             ], 500);
         }
-
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
-    {
-        //
-    }
+    public function show(string $id) {}
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
-    {
-        //
-    }
+    public function edit(string $id) {}
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+    public function update(Request $request, string $id) {}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
-    {
-        //
-    }
+    public function destroy(string $id) {}
 }

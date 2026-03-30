@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('phone', 15)->nullable();
             $table->timestamp('phone_verified_at')->nullable();
             $table->string('team_name', 50)->nullable();
-            $table->enum('role', ['admin futsal', 'admin mini soccer','tenant', 'treasurer futsal', 'treasurer mini soccer', 'owner'])->index();
+            $table->enum('role', ['admin futsal', 'admin mini soccer', 'tenant', 'treasurer futsal', 'treasurer mini soccer', 'owner'])->index();
             $table->rememberToken();
             $table->timestamps();
         });

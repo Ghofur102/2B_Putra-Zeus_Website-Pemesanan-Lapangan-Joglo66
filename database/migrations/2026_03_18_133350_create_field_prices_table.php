@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -17,7 +16,7 @@ return new class extends Migration
             $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
             $table->time('start_time');
             $table->time('end_time');
-            $table->enum('day_type', ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
+            $table->enum('day_type', ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
             $table->unsignedInteger('price');
             $table->timestamps();
         });

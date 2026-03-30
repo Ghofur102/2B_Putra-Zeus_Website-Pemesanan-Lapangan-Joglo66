@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\Booking;
 use App\Models\User;
-use Illuminate\Auth\Access\Response;
 
 class BookingPolicy
 {
@@ -31,7 +30,8 @@ class BookingPolicy
     {
         $uniqueFieldsId = array_unique($fieldId);
         $countOwned = $user->fieldAdmin()->whereIn('fk_field_id', $uniqueFieldsId)->count();
-        return $user->role == "tenant" || count($uniqueFieldsId) === $countOwned;
+
+        return $user->role === 'tenant' || count($uniqueFieldsId) === $countOwned;
     }
 
     /**

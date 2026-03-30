@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FinancialReport extends Model
 {
-    protected $connection = "mysql_joglo66_app";
-    protected $table = "financial_reports";
-    public $fillable = [
-        "fk_field_id", "year", "mont", "total_income", "total_expense", "net_profit", "generate_at"
+    protected $connection = 'mysql_joglo66_app';
+
+    protected $table = 'financial_reports';
+
+    protected $fillable = [
+        'fk_field_id', 'year', 'mont', 'total_income', 'total_expense', 'net_profit', 'generate_at',
     ];
 
     public function field(): BelongsTo

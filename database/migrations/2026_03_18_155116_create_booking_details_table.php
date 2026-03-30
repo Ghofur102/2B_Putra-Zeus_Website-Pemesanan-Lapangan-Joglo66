@@ -19,7 +19,7 @@ return new class extends Migration
             $table->time('end_play_time');
             $table->date('play_date');
             $table->unsignedBigInteger('price');
-            $table->enum('status', ['active', 'waiting', 'finish', 'cancelled from admin', 'reschedule from admin', 'cancelled from tenant', 'reschedule from tenant', "field close"]);
+            $table->enum('status', ['active', 'waiting', 'finish', 'cancelled from admin', 'reschedule from admin', 'cancelled from tenant', 'reschedule from tenant', 'field close']);
             $table->timestamps();
         });
     }

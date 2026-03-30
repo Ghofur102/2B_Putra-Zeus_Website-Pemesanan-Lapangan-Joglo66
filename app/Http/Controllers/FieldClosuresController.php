@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Gate;
 use App\Models\BookingDetail;
 use App\Models\FieldClosure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\Rule;
 
 class FieldClosuresController extends Controller
 {
@@ -28,10 +28,7 @@ class FieldClosuresController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
-    {
-
-    }
+    public function create() {}
 
     /**
      * Store a newly created resource in storage.
@@ -42,7 +39,7 @@ class FieldClosuresController extends Controller
             'fk_field_id' => ['required', 'integer', 'exists:fields, id'],
             'field_closure_start_time' => ['required', Rule::date()->format('Y-m-d H:i:s')->afterOrEqual(today())],
             'field_closure_end_time' => ['required', Rule::date()->format('Y-m-d H:i:s')->afterOrEqual(today()), 'after:field_closure_start_time'],
-            'reason' => ['required', 'max:300']
+            'reason' => ['required', 'max:300'],
         ]);
 
         Gate::authorize('create', [FieldClosure::class, $validatedData['fk_field_id']]);
@@ -63,14 +60,14 @@ class FieldClosuresController extends Controller
              */
             ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
                 $validatedData['field_closure_end_time'],
-                $validatedData['field_closure_start_time']
+                $validatedData['field_closure_start_time'],
             ])
             ->update(['status', 'field closure']);
 
         $affectedBookings = BookingDetail::where('fk_field_id', $validatedData['fk_field_id'])
             ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
                 $validatedData['field_closure_end_time'],
-                $validatedData['field_closure_start_time']
+                $validatedData['field_closure_start_time'],
             ])
             ->get();
 
@@ -78,7 +75,7 @@ class FieldClosuresController extends Controller
             return response()->json([
                 'status' => 'success',
                 'data_field_closure' => $addDateFieldClosure,
-                'affected_bookings' => $affectedBookings
+                'affected_bookings' => $affectedBookings,
             ]);
         }
     }
@@ -101,24 +98,15 @@ class FieldClosuresController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
-    {
-        //
-    }
+    public function edit(string $id) {}
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+    public function update(Request $request, string $id) {}
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
-    {
-        //
-    }
+    public function destroy(string $id) {}
 }
