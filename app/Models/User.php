@@ -24,7 +24,6 @@ class User extends Authenticatable
         'email',
         'password',
         'phone',
-        'team_name',
         'role',
     ];
 
@@ -72,5 +71,10 @@ class User extends Authenticatable
     public function fieldAdmin(): HasMany
     {
         return $this->hasMany(FieldAdmin::class, 'fk_user_id', 'id');
+    }
+
+    public function fieldClosure(): HasMany
+    {
+        return $this->hasMany(FieldClosure::class, 'fk_user_id', 'id');
     }
 }

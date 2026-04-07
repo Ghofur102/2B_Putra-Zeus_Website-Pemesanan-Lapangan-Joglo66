@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('fk_booking_detail_id')->constrained('booking_details')->onDelete('cascade');
             $table->foreignId('fk_field_closure_id')->nullabale()->constrained('field_closures')->onDelete('cascade');
             $table->date('old_date');
-            $table->date('new_date');
+            $table->enum('status_refund', ['none', 'deposit required', 'refund required']);
             $table->text('reason')->nullable();
             $table->timestamps();
         });

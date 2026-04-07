@@ -9,13 +9,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Field extends Model
 {
     use HasFactory;
-    
+
     protected $connection = 'mysql_joglo66_app';
 
     protected $table = 'fields';
 
     protected $fillable = [
-        'name', 'description', 'image_url', 'category', 'start_time', 'close_time',
+        'name', 'description', 'image_url', 'category'
     ];
 
     public function fieldPrices(): HasMany
@@ -23,14 +23,14 @@ class Field extends Model
         return $this->hasMany(FieldPrice::class, 'fk_field_id', 'id');
     }
 
+    public function bookings(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'fk_field_id', 'id');
+    }
+
     public function attributes(): HasMany
     {
         return $this->hasMany(Attribute::class, 'fk_filed_id', 'id');
-    }
-
-    public function bookingDetail(): HasMany
-    {
-        return $this->hasMany(BookingDetail::class, 'fk_booking_detail_id', 'id');
     }
 
     public function expenses(): HasMany

@@ -13,7 +13,7 @@ class BookingAttribute extends Model
     protected $table = 'booking_attributes';
 
     protected $fillable = [
-        'fk_booking_id', 'fk_attribute_id', 'start_booking_attribute_time', 'return_booking_attribute_time', 'quantity', 'price', 'total', 'reason',
+        'fk_booking_id', 'fk_attribute_id', 'quantity', 'price', 'total', 'reason',
     ];
 
     public function booking(): BelongsTo

@@ -16,8 +16,6 @@ return new class extends Migration
             $table->string('name', 50)->index();
             $table->text('description')->nullable();
             $table->string('image_url', 255)->nullable();
-            $table->time('start_time');
-            $table->time('close_time');
             $table->enum('category', ['futsal', 'mini soccer'])->index();
             $table->timestamps();
         });

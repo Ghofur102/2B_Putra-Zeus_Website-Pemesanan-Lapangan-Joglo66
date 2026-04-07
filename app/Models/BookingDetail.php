@@ -14,7 +14,6 @@ class BookingDetail extends Model
 
     protected $fillable = [
         'fk_booking_id',
-        'fk_field_id',
         'start_play_time',
         'end_play_time',
         'play_date',
@@ -40,11 +39,6 @@ class BookingDetail extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class, 'fk_booking_id', 'id');
-    }
-
-    public function field(): BelongsTo
-    {
-        return $this->belongsTo(Field::class, 'fk_field_id', 'id');
     }
 
     public function payment(): HasMany

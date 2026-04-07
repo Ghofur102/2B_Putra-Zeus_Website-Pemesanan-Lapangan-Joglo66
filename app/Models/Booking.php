@@ -15,12 +15,17 @@ class Booking extends Model
     protected $table = 'bookings';
 
     protected $fillable = [
-        'fk_user_id', 'booking_date', 'status_booking',
+        'fk_user_id', 'fk_field_id', 'booking_date', 'team_name',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'fk_user_id', 'id');
+    }
+
+    public function field(): BelongsTo
+    {
+        return $this->belongsTo(Field::class, 'fk_field_id', 'id');
     }
 
     public function details(): HasMany

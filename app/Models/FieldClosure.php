@@ -13,8 +13,13 @@ class FieldClosure extends Model
     protected $table = 'field_closures';
 
     protected $fillable = [
-        'fk_field_id', 'field_closure_start_time', 'field_closure_end_time', 'reason',
+        'fk_user_id', 'fk_field_id', 'field_closure_start_time', 'field_closure_end_time', 'reason',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'fk_user_id', 'id');
+    }
 
     public function field(): BelongsTo
     {

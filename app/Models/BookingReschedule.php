@@ -12,7 +12,7 @@ class BookingReschedule extends Model
     protected $table = 'booking_reschedules';
 
     protected $fillable = [
-        'fk_booking_detail_id', 'fk_field_closure_id', 'old_date', 'new_date', 'type_reschedule', 'reason',
+        'fk_booking_detail_id', 'fk_field_closure_id', 'old_date', 'status_refund', 'reason',
     ];
 
     public function bookingDetail(): BelongsTo
