@@ -20,3 +20,12 @@ Route::post('/bookings', [BookingsController::class, 'store']);
 
 // Payment Controller
 Route::post('/cash-payment', [PaymentsController::class, 'storeCashPayment']);
+
+// Huda Admin APIs
+Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
+    Route::get('/check-slot-availability/{field_id}/{date}', [HudaController::class, 'checkSlotAvailability']);
+    Route::put('/update-field', [HudaController::class, 'updateField']);
+    Route::post('/close-field', [HudaController::class, 'closeField']);
+    Route::get('/list-close-booking', [HudaController::class, 'listCloseBooking']);
+});
+
