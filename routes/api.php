@@ -2,9 +2,17 @@
 
 use App\Http\Controllers\BookingsController;
 use App\Http\Controllers\FieldClosuresController;
+use App\Http\Controllers\HudaController;
 use App\Http\Controllers\PaymentsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+Route::get('/hello', function () {
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Halo dari Laravel Lokal!'
+    ]);
+});
 
 Route::get('/user', function (Request $request) {
     return $request->user();
