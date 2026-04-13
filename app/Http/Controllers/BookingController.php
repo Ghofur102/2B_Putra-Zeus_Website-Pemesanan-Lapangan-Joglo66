@@ -2,42 +2,124 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Gate;
+use App\Models\Field;
 use App\Models\Booking;
 use App\Models\BookingDetail;
-use App\Models\Payment;
-use App\Models\Field;
-use App\Models\User;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
-class controller_danil extends Controller
+class BookingController extends Controller
 {
-    public function __construct()
+    // GET: /api/admin/list-booking (Zami)
+    public function index(Request $request): JsonResponse
     {
-        // Pastikan API ini hanya bisa diakses oleh admin yang sah.
-        $this->middleware('auth:sanctum');
-        $this->middleware(function ($request, $next) {
-            $user = $request->user();
+         try {
+            $fieldId = $request->field_id;
+            $search = $request->search;
+            $date = $request->date;
+            $limit = $request->limit ?? 20;
+            $today = Carbon::now()->format('Y-m-d');
 
-            if (! $user || ! in_array($user->role, ['owner', 'manager', 'treasurer'])) {
+            // Default field: mini soccer
+            $field = $fieldId
+                ? Field::find($fieldId)
+                : Field::where('category', 'mini soccer')->first();
+
+            if (!$field && $fieldId) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized admin access.',
-                ], 403);
+                    'message' => 'Field not found',
+                    'data' => null
+                ], 404);
             }
 
-            return $next($request);
-        });
+            // Base query
+            $query = Booking::with(['user', 'details'])
+                ->where('fk_field_id', $field->id ?? NULL);
+
+            // Apply search filter if provided
+            if ($search) {
+                $query->where('team_name', 'LIKE', "%{$search}%");
+            }
+
+            // Fetch bookings with booking_details
+            $bookings = $query->get()->sortBy(function ($booking) {
+                return $booking->details->min('play_date');
+            });
+
+            // Split into today and upcoming
+            $todayBookings = [];
+            $upcomingBookings = [];
+
+            foreach ($bookings as $booking) {
+                foreach ($booking->details as $detail) {
+                    $playDate = $detail->play_date;
+
+                    // Skip if not matching specific date filter
+                    if ($date && $playDate !== $date) {
+                        continue;
+                    }
+
+                    $bookingItem = [
+                        'id' => $detail->id,
+                        'date' => Carbon::parse($playDate)->format('d'),
+                        'month' => Carbon::parse($playDate)->format('M'),
+                        'year' => Carbon::parse($playDate)->format('Y'),
+                        'title' => "{$booking->team_name} ({$booking->user->name})",
+                        'time' => Carbon::parse($detail->start_play_time)->format('H.i') . ' - ' . Carbon::parse($detail->end_play_time)->format('H.i'),
+                        'description' => $this->generateBookingDescription(
+                            $field->name,
+                            $detail->start_play_time,
+                            $detail->end_play_time
+                        ),
+                        'status' => $detail->status
+                    ];
+
+                    if ($playDate === $today) {
+                        $todayBookings[] = $bookingItem;
+                    } else if ($playDate > $today) {
+                        $upcomingBookings[] = $bookingItem;
+                    }
+                }
+            }
+
+            // Sort by time
+            usort($todayBookings, function ($a, $b) {
+                return strcmp($a['time'], $b['time']);
+            });
+            usort($upcomingBookings, function ($a, $b) {
+                return strcmp($a['date'] . $a['time'], $b['date'] . $b['time']);
+            });
+
+            // Apply limit
+            $todayBookings = array_slice($todayBookings, 0, $limit);
+            $upcomingBookings = array_slice($upcomingBookings, 0, $limit);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Booking list retrieved successfully',
+                'data' => [
+                    'today' => $todayBookings,
+                    'upcoming' => $upcomingBookings
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
     }
 
-    /**
-     * Buat booking baru untuk admin.
-     * Endpoint: POST /api/admin/create-booking
-     */
-    public function createBooking(Request $request)
+    // POST: /api/admin/create-booking (Danil)
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'user_id' => ['required', 'integer', 'exists:users,id'],
@@ -145,111 +227,22 @@ class controller_danil extends Controller
         ], 201);
     }
 
-    /**
-     * Proses pembayaran booking untuk admin.
-     * Endpoint: POST /api/admin/payment-booking
-     */
-    public function paymentBooking(Request $request)
+    // GET: /api/admin/detail-booking/{detail_booking_id} (Ghofur)
+    public function show($detail_booking_id)
     {
-        $validator = Validator::make($request->all(), [
-            'booking_id' => ['required', 'integer', 'exists:bookings,id'],
-            'booking_detail_id' => ['nullable', 'integer', 'exists:booking_details,id'],
-            'payment_type' => ['required', Rule::in(['down payment', 'final payment', 'reschedule fee', 'refund'])],
-            'method' => ['required', Rule::in(['cash', 'transfer'])],
-            'amount' => ['required', 'integer', 'min:1'],
-            'reference_id' => ['nullable', 'string', 'max:255'],
-        ]);
+        // Menampilkan rincian pesanan, status bayar, dll
+    }
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
+    // POST/PUT: /api/admin/reschedule-booking/{detail_booking_id} (Ghofur)
+    public function reschedule(Request $request, $detail_booking_id)
+    {
+        // Mengubah jadwal main (tanggal/jam) dari pesanan yang sudah ada
+    }
 
-        $payload = $validator->validated();
-        $booking = Booking::with('details')->find($payload['booking_id']);
-
-        if (! $booking) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Booking not found.',
-            ], 400);
-        }
-
-        if ($booking->details->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Booking has no associated details.',
-            ], 400);
-        }
-
-        if ($booking->details->every(fn ($detail) => $detail->status === 'cancelled')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cannot process payment for a fully cancelled booking.',
-            ], 400);
-        }
-
-        if (! empty($payload['booking_detail_id'])) {
-            $detail = $booking->details->firstWhere('id', $payload['booking_detail_id']);
-            if (! $detail) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Booking detail does not belong to the selected booking.',
-                ], 400);
-            }
-        }
-
-        $referenceId = $payload['reference_id'] ?? Str::upper(Str::random(16));
-        $paymentUrl = null;
-        $paymentStatus = 'pending';
-
-        if ($payload['method'] === 'cash') {
-            $paymentStatus = 'success';
-            $paymentUrl = null;
-        } else {
-            $paymentUrl = $this->generatePaymentUrl($booking->id, $referenceId);
-        }
-
-        try {
-            $payment = DB::transaction(function () use ($booking, $payload, $referenceId, $paymentUrl, $paymentStatus) {
-                $payment = Payment::create([
-                    'fk_booking_id' => $booking->id,
-                    'fk_booking_detail_id' => $payload['booking_detail_id'] ?? null,
-                    'reference_id' => $referenceId,
-                    'payment_url' => $paymentUrl,
-                    'payment_type' => $payload['payment_type'],
-                    'method' => $payload['method'],
-                    'amount' => $payload['amount'],
-                    'status' => $paymentStatus,
-                    'paid_at' => $paymentStatus === 'success' ? now() : null,
-                ]);
-
-                if ($payload['payment_type'] === 'down payment') {
-                    $booking->details()->where('status', 'waiting')->update(['status' => 'active']);
-                }
-
-                return $payment;
-            });
-        } catch (\Exception $exception) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to process payment.',
-                'error' => $exception->getMessage(),
-            ], 500);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment processed successfully.',
-            'data' => [
-                'payment_id' => $payment->id,
-                'status' => $payment->status,
-                'payment_url' => $paymentUrl,
-            ],
-        ], 200);
+    // POST/PUT: /api/admin/cancel-booking/{detail_booking_id} (Ghofur)
+    public function cancel(Request $request, $detail_booking_id)
+    {
+        // Membatalkan pesanan (mengubah status menjadi dibatalkan)
     }
 
     private function hasFieldConflict(int $fieldId, array $detail): bool
@@ -288,8 +281,38 @@ class controller_danil extends Controller
         return true;
     }
 
-    private function generatePaymentUrl(int $bookingId, string $referenceId): string
+    // GET: /api/admin/list-close-booking (Huda)
+    public function closedBookings(Request $request)
     {
-        return sprintf('https://payment-gateway.example.com/pay/%s/%s', $bookingId, $referenceId);
+        Gate::authorize('viewAny', BookingDetail::class);
+
+        $query = BookingDetail::where('status', 'field closure')
+            ->with(['booking.user', 'field'])
+            ->orderBy('play_date', 'desc')
+            ->orderBy('start_play_time');
+
+        if ($request->has('field_id')) {
+            $query->where('fk_field_id', $request->field_id);
+        }
+
+        if ($request->has('date')) {
+            $query->where('play_date', $request->date);
+        }
+
+        $closedBookings = $query->paginate(20);
+
+        return response()->json([
+            'status' => 'success',
+            'closed_bookings' => $closedBookings,
+        ]);
+    }
+
+    private function generateBookingDescription(string $fieldName, $startTime, $endTime): string
+    {
+        $start = Carbon::parse($startTime);
+        $end = Carbon::parse($endTime);
+        $duration = $end->diffInHours($start);
+
+        return "Booking lapangan {$fieldName} dengan durasi {$duration} jam";
     }
 }

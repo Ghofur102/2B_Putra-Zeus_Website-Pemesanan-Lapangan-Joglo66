@@ -1,39 +1,31 @@
 <?php
 
-use App\Http\Controllers\BookingsController;
-use App\Http\Controllers\FieldClosuresController;
-use App\Http\Controllers\HudaController;
-use App\Http\Controllers\PaymentsController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FieldController;
+use App\Http\Controllers\BookingController;
+use App\Http\Controllers\PaymentController;
 
-Route::get('/hello', function () {
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Halo dari Laravel Lokal!'
-    ]);
-});
-
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-// Field Closures Controller
-Route::get('/field-closures/{field_id}', [FieldClosuresController::class, 'index']);
-Route::get('/field-closures/{field_id}/{id}', [FieldClosuresController::class, 'show']);
-Route::post('/field-closures', [FieldClosuresController::class, 'store']);
-
-// Booking Controller
-Route::post('/bookings', [BookingsController::class, 'store']);
-
-// Payment Controller
-Route::post('/cash-payment', [PaymentsController::class, 'storeCashPayment']);
-
-// Huda Admin APIs
 Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
-    Route::get('/check-slot-availability/{field_id}/{date}', [HudaController::class, 'checkSlotAvailability']);
-    Route::put('/update-field', [HudaController::class, 'updateField']);
-    Route::post('/close-field', [HudaController::class, 'closeField']);
-    Route::get('/list-close-booking', [HudaController::class, 'listCloseBooking']);
-});
 
+    // Dashboard
+    Route::get('/dashboard', [DashboardController::class, 'index']); // Zami
+
+    // Field
+    Route::get('/list-field', [FieldController::class, 'index']); // Zami
+    Route::get('/detail-field/{field_id}', [FieldController::class, 'show']); // Ghofur
+    Route::post('/update-field', [FieldController::class, 'update']); // Huda
+    Route::get('/check-slot-availability/{field_id}/{date}', [FieldController::class, 'checkAvailability']); // Huda
+    Route::post('/close-field', [FieldController::class, 'closeField']); // Huda
+
+    // Booking
+    Route::get('/list-booking', [BookingController::class, 'index']); // Zami
+    Route::post('/create-booking', [BookingController::class, 'store']); // Danil
+    Route::get('/detail-booking/{detail_booking_id}', [BookingController::class, 'show']); // Ghofur
+    Route::post('/reschedule-booking/{detail_booking_id}', [BookingController::class, 'reschedule']); // Ghofur
+    Route::post('/cancel-booking/{detail_booking_id}', [BookingController::class, 'cancel']); // Ghofur
+    Route::get('/list-close-booking', [BookingController::class, 'closedBookings']); // Huda
+
+    // Payment
+    Route::post('/payment-booking', [PaymentController::class, 'processPayment']); // Danil
+});
