@@ -20,22 +20,7 @@ class BookingDetail extends Model
         'price',
         'status',
     ];
-
-    public static function isBookingDetailConflict($detail)
-    {
-        return BookingDetail::where('fk_field_id', $detail['fk_field_id'])
-            ->where('play_date', $detail['play_date'])
-            ->where(function ($query) use ($detail) {
-                $query->whereBetween('start_play_time', [$detail['start_play_time'], $detail['end_play_time']])
-                    ->orWhereBetween('end_play_time', [$detail['start_play_time'], $detail['end_play_time']])
-                    ->orWhere(function ($q) use ($detail) {
-                        $q->where('start_play_time', '<=', $detail['start_play_time'])
-                            ->where('end_play_time', '>=', $detail['end_play_time']);
-                    });
-            })
-            ->exists();
-    }
-
+   
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class, 'fk_booking_id', 'id');

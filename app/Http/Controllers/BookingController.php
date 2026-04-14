@@ -6,6 +6,8 @@ use Illuminate\Support\Facades\Gate;
 use App\Models\Field;
 use App\Models\Booking;
 use App\Models\BookingDetail;
+use App\Models\BookingCancle;
+use App\Models\BookingReschedule;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -230,19 +232,198 @@ class BookingController extends Controller
     // GET: /api/admin/detail-booking/{detail_booking_id} (Ghofur)
     public function show($detail_booking_id)
     {
-        // Menampilkan rincian pesanan, status bayar, dll
+        // 1. Mengambil data beserta relasinya dalam satu kali query (Eager Loading)
+        // Kita butuh data booking, field (dari dalam booking), dan data payment
+        $detail = BookingDetail::with(['booking.field', 'payment'])->find($detail_booking_id);
+
+        // 2. Validasi jika data tidak ditemukan
+        if (!$detail) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Booking detail not found.',
+                'data' => null
+            ], 404);
+        }
+
+        // 3. Menghitung durasi jam main menggunakan Carbon
+        $start = Carbon::parse($detail->start_play_time);
+        $end = Carbon::parse($detail->end_play_time);
+        $duration = $start->diffInHours($end);
+
+        // Mencegah pembagian dengan 0 jika durasi kurang dari 1 jam
+        $duration = $duration > 0 ? $duration : 1;
+
+        // 4. Kalkulasi Harga
+        // Asumsi: $detail->price adalah Total Harga untuk sesi ini
+        $totalPrice = $detail->price;
+        $pricePerHour = $totalPrice / $duration;
+
+        // 5. Kalkulasi Pembayaran (Mencari total DP dan metode bayar)
+        $totalDp = 0;
+        $paymentMethod = '-';
+
+        // Mengecek apakah ada data pembayaran yang terkait dengan detail ini
+        if ($detail->payment && $detail->payment->count() > 0) {
+            // Menjumlahkan semua pembayaran yang statusnya 'paid' atau 'success'
+            // Sesuaikan string 'paid' dengan status yang Anda gunakan di database
+            $totalDp = $detail->payment->where('status', 'paid')->sum('amount');
+
+            // Mengambil metode pembayaran dari transaksi terakhir
+            $paymentMethod = $detail->payment->last()->method ?? '-';
+        }
+
+        // 6. Menyusun respons JSON agar strukturnya sama persis dengan urutan desain UI
+        $responseData = [
+            'id' => $detail->id,
+            'status' => $detail->status,
+            'field_info' => [
+                'name' => $detail->booking->field->name ?? 'Unknown Field',
+                'category' => $detail->booking->field->category ?? 'Unknown Category',
+                'image_url' => $detail->booking->field->image_url,
+            ],
+            'time_info' => [
+                'play_date' => Carbon::parse($detail->play_date)->format('l, F d, Y'),
+                'play_time' => $start->format('H:i') . ' - ' . $end->format('H:i'),
+                'order_time' => Carbon::parse($detail->booking->booking_date)->format('l, F d, Y H:i'),
+            ],
+            'service_info' => [
+                'duration' => $duration,
+                'price_per_hour' => $pricePerHour,
+                'total_price' => $totalPrice,
+                'total_down_payment' => $totalDp,
+            ],
+            'payment_details' => [
+                'total_price' => $totalPrice,
+                'payment_method' => $paymentMethod,
+            ]
+        ];
+
+        // 7. Kembalikan data dalam format JSON
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Booking detail retrieved successfully.',
+            'data' => $responseData
+        ], 200);
     }
 
     // POST/PUT: /api/admin/reschedule-booking/{detail_booking_id} (Ghofur)
     public function reschedule(Request $request, $detail_booking_id)
     {
-        // Mengubah jadwal main (tanggal/jam) dari pesanan yang sudah ada
+        // 1. Validasi input dari Flutter
+        $request->validate([
+            'new_play_date' => 'required|date',
+            'new_start_time' => 'required|date_format:H:i', // Format jam, misal: 14:00
+            'new_end_time' => 'required|date_format:H:i|after:new_start_time',
+            'reason' => 'required|string',
+            'fk_field_closure_id' => 'nullable|integer', // Jika karena tutup lapangan
+        ]);
+
+        // 2. Cari data booking detail
+        $detail = BookingDetail::find($detail_booking_id);
+
+        if (!$detail) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data booking tidak ditemukan.',
+                'data' => null
+            ], 404);
+        }
+
+        try {
+            // 3. Gunakan DB Transaction agar aman
+            DB::transaction(function () use ($detail, $request) {
+
+                // A. Catat riwayat perubahan (Reschedule Log)
+                BookingReschedule::create([
+                    'fk_booking_detail_id' => $detail->id,
+                    'fk_field_closure_id' => $request->fk_field_closure_id, // Bisa null
+                    'old_date' => $detail->play_date, // Menyimpan tanggal lama
+                    'reason' => $request->reason,
+                    // 'status_refund' => null, // Opsional jika ada biaya admin dll
+                ]);
+
+                // B. Update data Booking Detail dengan jadwal baru
+                $detail->update([
+                    'play_date' => $request->new_play_date,
+                    'start_play_time' => $request->new_start_time,
+                    'end_play_time' => $request->new_end_time,
+                    'status' => 'Rescheduled', // Ubah status jika perlu
+                ]);
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Jadwal booking berhasil diubah.',
+                'data' => BookingDetail::find($detail_booking_id) // Kembalikan data terbaru
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan saat mengubah jadwal: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     // POST/PUT: /api/admin/cancel-booking/{detail_booking_id} (Ghofur)
     public function cancel(Request $request, $detail_booking_id)
     {
-        // Membatalkan pesanan (mengubah status menjadi dibatalkan)
+        // 1. Validasi input dari Flutter
+        $request->validate([
+            'reason' => 'required|string',
+            'status_refund' => 'nullable|string', // Contoh: 'Pending', 'Completed', 'None'
+            'fk_field_closure_id' => 'nullable|integer', // Jika karena tutup lapangan
+        ]);
+
+        // 2. Cari data booking detail
+        $detail = BookingDetail::find($detail_booking_id);
+
+        if (!$detail) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data booking tidak ditemukan.',
+                'data' => null
+            ], 404);
+        }
+
+        // Cegah pembatalan ganda
+        if ($detail->status === 'Cancelled') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Booking ini sudah dibatalkan sebelumnya.',
+            ], 400); // Bad Request
+        }
+
+        try {
+            // 3. Gunakan DB Transaction agar aman
+            DB::transaction(function () use ($detail, $request) {
+
+                // A. Catat riwayat pembatalan (Cancel Log)
+                BookingCancle::create([
+                    'fk_booking_detail_id' => $detail->id,
+                    'fk_field_closure_id' => $request->fk_field_closure_id, // Bisa null
+                    'cancle_date' => Carbon::now()->toDateString(), // Tanggal dibatalkan
+                    'reason' => $request->reason,
+                    'status_refund' => $request->status_refund ?? 'None',
+                ]);
+
+                // B. Update status di Booking Detail menjadi batal
+                $detail->update([
+                    'status' => 'Cancelled',
+                ]);
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Booking berhasil dibatalkan.',
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan saat membatalkan booking: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     private function hasFieldConflict(int $fieldId, array $detail): bool

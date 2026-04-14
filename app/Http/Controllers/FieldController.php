@@ -116,10 +116,25 @@ class FieldController extends Controller
             ], 500);
         }
     }
+
     // GET: /api/admin/detail-field/{field_id} (Ghofur)
     public function show($field_id)
     {
-        // Menampilkan detail spesifik dari satu lapangan
+        $field = Field::with('fieldPrices')->find($field_id);
+
+        if (!$field) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Data lapangan tidak ditemukan.',
+                'data' => null
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Detail lapangan berhasil diambil.',
+            'data' => $field
+        ], 200); 
     }
 
     // POST/PUT: /api/admin/update-field (Huda)
