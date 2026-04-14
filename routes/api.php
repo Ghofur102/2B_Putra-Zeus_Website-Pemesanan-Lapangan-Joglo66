@@ -15,7 +15,7 @@ Route::get('/hello', function () {
 Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
 
     // Dashboard
-    Route::get('/dashboard', [DashboardController::class, 'index']); // Zami
+    Route::get('/dashboard', [DashboardController::class, 'dashboard']); // Zami
 
     // Field
     Route::get('/list-field', [FieldController::class, 'index']); // Zami
