@@ -10,17 +10,14 @@ class UserFactory extends Factory
 {
     public function definition(): array
     {
-        $roles = ['admin futsal', 'admin mini soccer', 'tenant', 'treasurer futsal', 'treasurer mini soccer', 'owner'];
-
         return [
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => Hash::make('password'),
-            'phone' => fake()->numerify('085733532098'),
+            'phone' => fake()->numerify('0857########'),
             'phone_verified_at' => now(),
-            'team_name' => fake()->optional()->company(),
-            'role' => fake()->randomElement($roles),
+            'role' => fake()->randomElement(['worker', 'tenant', 'treasurer', 'owner', 'manager']),
             'remember_token' => Str::random(10),
         ];
     }
