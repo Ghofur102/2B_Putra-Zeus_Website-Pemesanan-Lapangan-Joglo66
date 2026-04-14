@@ -17,7 +17,6 @@ class DashboardController extends Controller
     {
         try {
             $fieldId = $request->field_id;
-            $fieldName = $request->field_name ?? 'mini soccer';
             $today = Carbon::now()->format('Y-m-d');
             $dayType = strtolower(Carbon::now()->englishDayOfWeek);
 
@@ -34,37 +33,59 @@ class DashboardController extends Controller
                 ], 404);
             }
 
-            // Hitung slotTerisi: booking_details active untuk hari ini
+            // ============================================
+            // HITUNG SLOT TERISI (Booking yang ACTIVE)
+            // ============================================
+            // Ambil semua booking_details yang:
+            // 1. Status = 'active' (sudah terkonfirmasi)
+            // 2. play_date = hari ini
+            // 3. Dari field yang sama
             $slotTerisi = BookingDetail::where('status', 'active')
                 ->whereDate('play_date', $today)
-                ->join('bookings', 'bookings.id', '=', 'booking_details.fk_booking_id')
-                ->where('bookings.fk_field_id', $field->id)
+                ->whereHas('booking', function ($query) use ($field) {
+                    $query->where('fk_field_id', $field->id);
+                })
                 ->count();
 
-            // Hitung totalSlot: field_prices untuk hari ini
+            // ============================================
+            // HITUNG TOTAL SLOT TERSEDIA
+            // ============================================
+            // Jumlah slot yang tersedia untuk hari ini
+            // 1 slot = 1 jam (misal: 08:00-09:00, 09:00-10:00, dst)
             $totalSlot = FieldPrice::where('fk_field_id', $field->id)
                 ->where('day_type', $dayType)
                 ->count();
 
-            // Hitung totalBooking: DISTINCT bookings untuk hari ini
+            // Default jika belum ada field_prices
+            if ($totalSlot === 0) {
+                $totalSlot = 1; // Minimal 1 slot
+            }
+
+            // ============================================
+            // HITUNG TOTAL BOOKING HARI INI
+            // ============================================
+            // Jumlah DISTINCT bookings (order) yang masuk hari ini
+            // 1 booking bisa punya multiple booking_details (multiple slots)
             $totalBooking = Booking::where('fk_field_id', $field->id)
                 ->whereHas('details', function ($query) use ($today) {
-                    $query->whereDate('play_date', $today);
+                    $query->whereDate('play_date', $today)
+                          ->where('status', '!=', 'cancelled');
                 })
-                ->distinct()
-                ->count('bookings.id');
+                ->count();
 
-            // Hitung slotKosong
-            $slotKosong = $totalSlot - $slotTerisi;
+            // ============================================
+            // HITUNG SLOT KOSONG
+            // ============================================
+            $slotKosong = max(0, $totalSlot - $slotTerisi);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Dashboard data retrieved successfully',
                 'data' => [
-                    'name' => 'Joglo66',
+                    'name' => $field->name ?? 'Joglo66',
                     'slotTerisi' => $slotTerisi,
                     'totalSlot' => $totalSlot,
-                    'slotKosong' => max(0, $slotKosong), // Ensure non-negative
+                    'slotKosong' => $slotKosong,
                     'totalBooking' => $totalBooking,
                 ]
             ], 200);
