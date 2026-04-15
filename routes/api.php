@@ -5,11 +5,17 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FieldController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\PaymentController;
+use Illuminate\Http\Request;
+
+// Public test endpoint (no authentication required)
+Route::get('/hello', function () {
+    return response()->json(['message' => 'Hello from Laravel!']);
+});
 
 Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
 
     // Dashboard
-    Route::get('/dashboard', [DashboardController::class, 'index']); // Zami
+    Route::get('/dashboard', [DashboardController::class, 'dashboard']); // Zami
 
     // Field
     Route::get('/list-field', [FieldController::class, 'index']); // Zami
@@ -28,4 +34,8 @@ Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
 
     // Payment
     Route::post('/payment-booking', [PaymentController::class, 'processPayment']); // Danil
+    
+    Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
 });
