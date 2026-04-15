@@ -20,92 +20,38 @@ class FieldController extends Controller
     public function index(Request $request): JsonResponse
     {
          try {
-            $fieldId = $request->field_id;
             $search = $request->search;
-            $date = $request->date;
             $limit = $request->limit ?? 20;
-            $today = Carbon::now()->format('Y-m-d');
 
-            // Default field: mini soccer
-            $field = $fieldId
-                ? Field::find($fieldId)
-                : Field::where('category', 'mini soccer')->first();
-
-            if (!$field && $fieldId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Field not found',
-                    'data' => null
-                ], 404);
-            }
-
-            // Base query
-            $query = Booking::with(['user', 'details'])
-                ->where('fk_field_id', $field->id ?? NULL);
+            // Query ALL fields (lapangan), not bookings!
+            $query = Field::query();
 
             // Apply search filter if provided
             if ($search) {
-                $query->where('team_name', 'LIKE', "%{$search}%");
+                $query->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('category', 'LIKE', "%{$search}%");
             }
 
-            // Fetch bookings with booking_details
-            $bookings = $query->get()->sortBy(function ($booking) {
-                return $booking->details->min('play_date');
-            });
+            // Fetch fields
+            $fields = $query->limit($limit)->get();
 
-            // Split into today and upcoming
-            $todayBookings = [];
-            $upcomingBookings = [];
-
-            foreach ($bookings as $booking) {
-                foreach ($booking->details as $detail) {
-                    $playDate = $detail->play_date;
-
-                    // Skip if not matching specific date filter
-                    if ($date && $playDate !== $date) {
-                        continue;
-                    }
-
-                    $duration = Carbon::parse($detail->start_play_time)->diffInHours(Carbon::parse($detail->end_play_time));
-
-                    $bookingItem = [
-                        'id' => $detail->id,
-                        'date' => Carbon::parse($playDate)->format('d'),
-                        'month' => Carbon::parse($playDate)->format('M'),
-                        'year' => Carbon::parse($playDate)->format('Y'),
-                        'title' => "{$booking->team_name} ({$booking->user->name})",
-                        'time' => Carbon::parse($detail->start_play_time)->format('H.i') . ' - ' . Carbon::parse($detail->end_play_time)->format('H.i'),
-                        'description' => "Booking lapangan {$field->name} dengan durasi {$duration} jam",
-                        'status' => $detail->status
-                    ];
-
-                    if ($playDate === $today) {
-                        $todayBookings[] = $bookingItem;
-                    } else if ($playDate > $today) {
-                        $upcomingBookings[] = $bookingItem;
-                    }
-                }
-            }
-
-            // Sort by time
-            usort($todayBookings, function ($a, $b) {
-                return strcmp($a['time'], $b['time']);
-            });
-            usort($upcomingBookings, function ($a, $b) {
-                return strcmp($a['date'] . $a['time'], $b['date'] . $b['time']);
-            });
-
-            // Apply limit
-            $todayBookings = array_slice($todayBookings, 0, $limit);
-            $upcomingBookings = array_slice($upcomingBookings, 0, $limit);
+            // Format response
+            $fieldsList = $fields->map(function ($field) {
+                return [
+                    'id' => $field->id,
+                    'name' => $field->name,
+                    'category' => $field->category,
+                    'location' => $field->location ?? 'N/A',
+                    'price' => $field->price ?? 0,
+                    'image' => $field->image ?? null,
+                    'status' => $field->status ?? 'active'
+                ];
+            })->toArray();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Booking list retrieved successfully',
-                'data' => [
-                    'today' => $todayBookings,
-                    'upcoming' => $upcomingBookings
-                ]
+                'message' => 'Field list retrieved successfully',
+                'data' => $fieldsList
             ], 200);
 
         } catch (\Exception $e) {
