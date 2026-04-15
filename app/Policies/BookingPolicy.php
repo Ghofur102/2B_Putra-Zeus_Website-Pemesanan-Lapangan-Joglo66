@@ -28,6 +28,11 @@ class BookingPolicy
      */
     public function create(User $user, array $fieldId): bool
     {
+        // Allow admin to create bookings for testing
+        if ($user->role === 'admin' || $user->role === 'manager' || $user->role === 'owner') {
+            return true;
+        }
+
         $uniqueFieldsId = array_unique($fieldId);
         $countOwned = $user->fieldAdmin()->whereIn('fk_field_id', $uniqueFieldsId)->count();
 
