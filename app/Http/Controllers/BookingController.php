@@ -26,30 +26,31 @@ class BookingController extends Controller
             $date = $request->date;
             $limit = $request->limit ?? 20;
             $today = Carbon::now()->format('Y-m-d');
+            $user = $request->user();
 
-            // Default field: mini soccer
-            $field = $fieldId
-                ? Field::find($fieldId)
-                : Field::where('category', 'mini soccer')->first();
+            // 1. Base Query untuk Booking (Dilengkapi Relasi)
+            $query = Booking::with(['user', 'details']);
 
-            if (!$field && $fieldId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Field not found',
-                    'data' => null
-                ], 404);
+            // 2. FILTER BERDASARKAN HAK AKSES WORKER (Tabel field_admins)
+            if ($user && $user->role === 'worker') {
+                $query->whereIn('fk_field_id', function($q) use ($user) {
+                    $q->select('fk_field_id')
+                      ->from('field_admins')
+                      ->where('fk_user_id', $user->id);
+                });
             }
 
-            // Base query
-            $query = Booking::with(['user', 'details'])
-                ->where('fk_field_id', $field->id ?? NULL);
+            // 3. Filter berdasarkan lapangan spesifik (Jika dikirim via request)
+            if ($fieldId) {
+                $query->where('fk_field_id', $fieldId);
+            }
 
-            // Apply search filter if provided
+            // 4. Apply search filter if provided
             if ($search) {
                 $query->where('team_name', 'LIKE', "%{$search}%");
             }
 
-            // Fetch bookings with booking_details
+            // Ambil semua booking yang memenuhi syarat filter di atas
             $bookings = $query->get()->sortBy(function ($booking) {
                 return $booking->details->min('play_date');
             });
@@ -59,6 +60,9 @@ class BookingController extends Controller
             $upcomingBookings = [];
 
             foreach ($bookings as $booking) {
+                // Ambil relasi field secara manual dari database jika tidak ada (Karena eager loading dihapus di query awal untuk keamanan)
+                $fieldName = Field::find($booking->fk_field_id)->name ?? 'Unknown Field';
+
                 foreach ($booking->details as $detail) {
                     $playDate = $detail->play_date;
 
@@ -75,7 +79,7 @@ class BookingController extends Controller
                         'title' => "{$booking->team_name} ({$booking->user->name})",
                         'time' => Carbon::parse($detail->start_play_time)->format('H.i') . ' - ' . Carbon::parse($detail->end_play_time)->format('H.i'),
                         'description' => $this->generateBookingDescription(
-                            $field->name,
+                            $fieldName,
                             $detail->start_play_time,
                             $detail->end_play_time
                         ),
@@ -121,6 +125,8 @@ class BookingController extends Controller
     }
 
     // POST: /api/admin/create-booking (Danil)
+    // (Fungsi store tidak saya ubah karena sudah cukup aman. Hanya bisa membuat pesanan jika field_id dikirim)
+    // Jika Anda ingin memastikan worker hanya bisa membuat pesanan di lapangannya sendiri, tambahkan pengecekan DB::table('field_admins') di fungsi store ini.
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -128,6 +134,9 @@ class BookingController extends Controller
             'field_id' => ['required', 'integer', 'exists:fields,id'],
             'team_name' => ['required', 'string', 'max:50'],
             'booking_date' => ['required', 'date'],
+            'customer_phone' => ['nullable', 'string', 'max:20'],
+            'customer_email' => ['nullable', 'email', 'max:100'],
+            'notes' => ['nullable', 'string'],
             'details' => ['required', 'array', 'min:1'],
             'details.*.start_play_time' => ['required', 'date_format:H:i'],
             'details.*.end_play_time' => ['required', 'date_format:H:i'],
@@ -144,6 +153,23 @@ class BookingController extends Controller
         }
 
         $payload = $validator->validated();
+
+        // Cek Hak Akses Worker saat membuat pesanan (Tambahan Keamanan)
+        $userLogin = $request->user();
+        if ($userLogin && $userLogin->role === 'worker') {
+            $isAuthorized = DB::table('field_admins')
+                ->where('fk_user_id', $userLogin->id)
+                ->where('fk_field_id', $payload['field_id'])
+                ->exists();
+
+            if (!$isAuthorized) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Anda tidak memiliki hak akses untuk membuat pesanan di lapangan ini.',
+                ], 403);
+            }
+        }
+
         $field = Field::find($payload['field_id']);
         $user = User::find($payload['user_id']);
 
@@ -196,6 +222,9 @@ class BookingController extends Controller
                     'fk_field_id' => $payload['field_id'],
                     'team_name' => $payload['team_name'],
                     'booking_date' => $payload['booking_date'],
+                    'customer_phone' => $payload['customer_phone'] ?? null,
+                    'customer_email' => $payload['customer_email'] ?? null,
+                    'notes' => $payload['notes'] ?? null,
                 ]);
 
                 foreach ($details as $detail) {
@@ -230,13 +259,14 @@ class BookingController extends Controller
     }
 
     // GET: /api/admin/detail-booking/{detail_booking_id} (Ghofur)
-    public function show($detail_booking_id)
+    public function show(Request $request, $detail_booking_id)
     {
-        // 1. Mengambil data beserta relasinya dalam satu kali query (Eager Loading)
-        // Kita butuh data booking, field (dari dalam booking), dan data payment
-        $detail = BookingDetail::with(['booking.field', 'payment'])->find($detail_booking_id);
+        $user = $request->user();
 
-        // 2. Validasi jika data tidak ditemukan
+        // 1. Mengambil data beserta relasi INDUKNYA (booking.payments dan booking.details)
+        $detail = BookingDetail::with(['booking.field', 'booking.user', 'booking.payments', 'booking.details'])->find($detail_booking_id);
+
+        // 2. Validasi eksistensi
         if (!$detail) {
             return response()->json([
                 'status' => 'error',
@@ -245,37 +275,51 @@ class BookingController extends Controller
             ], 404);
         }
 
-        // 3. Menghitung durasi jam main menggunakan Carbon
+        // 3. VALIDASI HAK AKSES
+        if ($user && $user->role === 'worker') {
+            $isAuthorized = DB::table('field_admins')
+                ->where('fk_user_id', $user->id)
+                ->where('fk_field_id', $detail->booking->fk_field_id)
+                ->exists();
+
+            if (!$isAuthorized) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Anda tidak memiliki hak akses untuk melihat detail pesanan ini.',
+                ], 403);
+            }
+        }
+
+        // 4. Kalkulasi Durasi (Untuk detail jam ini saja)
         $start = Carbon::parse($detail->start_play_time);
         $end = Carbon::parse($detail->end_play_time);
         $duration = $start->diffInHours($end);
-
-        // Mencegah pembagian dengan 0 jika durasi kurang dari 1 jam
         $duration = $duration > 0 ? $duration : 1;
+        $pricePerHour = $detail->price / $duration;
 
-        // 4. Kalkulasi Harga
-        // Asumsi: $detail->price adalah Total Harga untuk sesi ini
-        $totalPrice = $detail->price;
-        $pricePerHour = $totalPrice / $duration;
+        // =========================================================================
+        // PERBAIKAN: HITUNG TOTAL HARGA DAN PEMBAYARAN DARI KESELURUHAN PESANAN
+        // =========================================================================
+        $bookingTotalPrice = $detail->booking->details->sum('price');
 
-        // 5. Kalkulasi Pembayaran (Mencari total DP dan metode bayar)
-        $totalDp = 0;
+        // Cari status 'success' (Sesuai dengan yang disimpan di PaymentController)
+        $bookingTotalPaid = $detail->booking->payments->where('status', 'success')->sum('amount');
+
         $paymentMethod = '-';
-
-        // Mengecek apakah ada data pembayaran yang terkait dengan detail ini
-        if ($detail->payment && $detail->payment->count() > 0) {
-            // Menjumlahkan semua pembayaran yang statusnya 'paid' atau 'success'
-            // Sesuaikan string 'paid' dengan status yang Anda gunakan di database
-            $totalDp = $detail->payment->where('status', 'paid')->sum('amount');
-
-            // Mengambil metode pembayaran dari transaksi terakhir
-            $paymentMethod = $detail->payment->last()->method ?? '-';
+        if ($detail->booking->payments->count() > 0) {
+            $paymentMethod = $detail->booking->payments->last()->method ?? '-';
         }
 
-        // 6. Menyusun respons JSON agar strukturnya sama persis dengan urutan desain UI
         $responseData = [
             'id' => $detail->id,
             'status' => $detail->status,
+            'user_info' => [
+                'name' => $detail->booking->team_name ?? 'Guest',
+                'email' => $detail->booking->customer_email ?? '-',
+                'phone' => $detail->booking->customer_phone ?? '-',
+                'team_name' => $detail->booking->team_name ?? '-',
+                'notes' => $detail->booking->notes ?? '-',
+            ],
             'field_info' => [
                 'name' => $detail->booking->field->name ?? 'Unknown Field',
                 'category' => $detail->booking->field->category ?? 'Unknown Category',
@@ -289,16 +333,15 @@ class BookingController extends Controller
             'service_info' => [
                 'duration' => $duration,
                 'price_per_hour' => $pricePerHour,
-                'total_price' => $totalPrice,
-                'total_down_payment' => $totalDp,
+                'total_price' => $bookingTotalPrice,
+                'total_down_payment' => $bookingTotalPaid,
             ],
             'payment_details' => [
-                'total_price' => $totalPrice,
+                'total_price' => $bookingTotalPrice,
                 'payment_method' => $paymentMethod,
             ]
         ];
 
-        // 7. Kembalikan data dalam format JSON
         return response()->json([
             'status' => 'success',
             'message' => 'Booking detail retrieved successfully.',
@@ -309,52 +352,50 @@ class BookingController extends Controller
     // POST/PUT: /api/admin/reschedule-booking/{detail_booking_id} (Ghofur)
     public function reschedule(Request $request, $detail_booking_id)
     {
-        // 1. Validasi input dari Flutter
         $request->validate([
             'new_play_date' => 'required|date',
-            'new_start_time' => 'required|date_format:H:i', // Format jam, misal: 14:00
+            'new_start_time' => 'required|date_format:H:i',
             'new_end_time' => 'required|date_format:H:i|after:new_start_time',
             'reason' => 'required|string',
-            'fk_field_closure_id' => 'nullable|integer', // Jika karena tutup lapangan
+            'fk_field_closure_id' => 'nullable|integer',
+            // TAMBAHKAN VALIDASI INI
+            'new_price' => 'nullable|integer|min:0',
         ]);
 
-        // 2. Cari data booking detail
         $detail = BookingDetail::find($detail_booking_id);
 
         if (!$detail) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Data booking tidak ditemukan.',
-                'data' => null
-            ], 404);
+            return response()->json(['status' => 'error', 'message' => 'Data booking tidak ditemukan.'], 404);
         }
 
         try {
-            // 3. Gunakan DB Transaction agar aman
             DB::transaction(function () use ($detail, $request) {
-
-                // A. Catat riwayat perubahan (Reschedule Log)
                 BookingReschedule::create([
                     'fk_booking_detail_id' => $detail->id,
-                    'fk_field_closure_id' => $request->fk_field_closure_id, // Bisa null
-                    'old_date' => $detail->play_date, // Menyimpan tanggal lama
+                    'fk_field_closure_id' => $request->fk_field_closure_id,
+                    'old_date' => $detail->play_date,
                     'reason' => $request->reason,
-                    // 'status_refund' => null, // Opsional jika ada biaya admin dll
                 ]);
 
-                // B. Update data Booking Detail dengan jadwal baru
-                $detail->update([
+                // UBAH BAGIAN INI UNTUK MENYIMPAN HARGA BARU JIKA ADA
+                $updateData = [
                     'play_date' => $request->new_play_date,
                     'start_play_time' => $request->new_start_time,
                     'end_play_time' => $request->new_end_time,
-                    'status' => 'Rescheduled', // Ubah status jika perlu
-                ]);
+                    'status' => 'reschedule',
+                ];
+
+                if ($request->has('new_price')) {
+                    $updateData['price'] = $request->new_price;
+                }
+
+                $detail->update($updateData);
             });
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Jadwal booking berhasil diubah.',
-                'data' => BookingDetail::find($detail_booking_id) // Kembalikan data terbaru
+                'data' => BookingDetail::find($detail_booking_id)
             ], 200);
 
         } catch (\Exception $e) {
@@ -365,64 +406,43 @@ class BookingController extends Controller
         }
     }
 
-    // POST/PUT: /api/admin/cancel-booking/{detail_booking_id} (Ghofur)
     public function cancel(Request $request, $detail_booking_id)
     {
-        // 1. Validasi input dari Flutter
         $request->validate([
             'reason' => 'required|string',
-            'status_refund' => 'nullable|string', // Contoh: 'Pending', 'Completed', 'None'
-            'fk_field_closure_id' => 'nullable|integer', // Jika karena tutup lapangan
+            'status_refund' => 'nullable|string',
+            'fk_field_closure_id' => 'nullable|integer',
         ]);
 
-        // 2. Cari data booking detail
         $detail = BookingDetail::find($detail_booking_id);
 
         if (!$detail) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Data booking tidak ditemukan.',
-                'data' => null
-            ], 404);
+            return response()->json(['status' => 'error', 'message' => 'Data booking tidak ditemukan.'], 404);
         }
 
-        // Cegah pembatalan ganda
         if ($detail->status === 'Cancelled') {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Booking ini sudah dibatalkan sebelumnya.',
-            ], 400); // Bad Request
+            return response()->json(['status' => 'error', 'message' => 'Booking ini sudah dibatalkan sebelumnya.'], 400);
         }
 
         try {
-            // 3. Gunakan DB Transaction agar aman
             DB::transaction(function () use ($detail, $request) {
-
-                // A. Catat riwayat pembatalan (Cancel Log)
                 BookingCancle::create([
                     'fk_booking_detail_id' => $detail->id,
-                    'fk_field_closure_id' => $request->fk_field_closure_id, // Bisa null
-                    'cancle_date' => Carbon::now()->toDateString(), // Tanggal dibatalkan
+                    'fk_field_closure_id' => $request->fk_field_closure_id,
+                    'cancle_date' => Carbon::now()->toDateString(),
                     'reason' => $request->reason,
                     'status_refund' => $request->status_refund ?? 'None',
                 ]);
 
-                // B. Update status di Booking Detail menjadi batal
                 $detail->update([
-                    'status' => 'Cancelled',
+                    'status' => 'cancelled',
                 ]);
             });
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Booking berhasil dibatalkan.',
-            ], 200);
+            return response()->json(['status' => 'success', 'message' => 'Booking berhasil dibatalkan.'], 200);
 
         } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Terjadi kesalahan saat membatalkan booking: ' . $e->getMessage(),
-            ], 500);
+            return response()->json(['status' => 'error', 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
         }
     }
 
@@ -433,14 +453,13 @@ class BookingController extends Controller
                 $query->where('fk_field_id', $fieldId);
             })
             ->where('play_date', $detail['play_date'])
-            ->where(function ($query) use ($detail) {
-                $query->whereBetween('start_play_time', [$detail['start_play_time'], $detail['end_play_time']])
-                    ->orWhereBetween('end_play_time', [$detail['start_play_time'], $detail['end_play_time']])
-                    ->orWhere(function ($subQuery) use ($detail) {
-                        $subQuery->where('start_play_time', '<=', $detail['start_play_time'])
-                            ->where('end_play_time', '>=', $detail['end_play_time']);
-                    });
-            })
+            // 1. Abaikan booking yang sudah dibatalkan atau karena lapangan tutup
+            ->whereNotIn('status', ['cancelled', 'field closure'])
+
+            // 2. Logika Overlap yang Benar (Tidak menganggap bentrok jika jamnya hanya bersebelahan)
+            // Rumus Overlap: (StartA < EndB) AND (EndA > StartB)
+            ->where('start_play_time', '<', $detail['end_play_time'])
+            ->where('end_play_time', '>', $detail['start_play_time'])
             ->exists();
     }
 
@@ -465,15 +484,31 @@ class BookingController extends Controller
     // GET: /api/admin/list-close-booking (Huda)
     public function closedBookings(Request $request)
     {
-        Gate::authorize('viewAny', BookingDetail::class);
+        $user = $request->user();
 
+        // 1. Ambil data dengan relasinya
         $query = BookingDetail::where('status', 'field closure')
             ->with(['booking.user', 'field'])
             ->orderBy('play_date', 'desc')
             ->orderBy('start_play_time');
 
+        // 2. FILTER BERDASARKAN HAK AKSES WORKER
+        if ($user && $user->role === 'worker') {
+            $query->whereHas('booking', function($q) use ($user) {
+                $q->whereIn('fk_field_id', function($subQuery) use ($user) {
+                    $subQuery->select('fk_field_id')
+                             ->from('field_admins')
+                             ->where('fk_user_id', $user->id);
+                });
+            });
+        }
+
+        // 3. Filter Query string
         if ($request->has('field_id')) {
-            $query->where('fk_field_id', $request->field_id);
+            // Karena relasi booking ada di tabel Booking, kita harus join atau menggunakan whereHas
+            $query->whereHas('booking', function($q) use ($request) {
+                $q->where('fk_field_id', $request->field_id);
+            });
         }
 
         if ($request->has('date')) {

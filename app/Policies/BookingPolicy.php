@@ -12,7 +12,7 @@ class BookingPolicy
      */
     public function viewAny(User $user): bool
     {
-        return false;
+        return in_array($user->role, ['owner', 'treasurer', 'worker']);
     }
 
     /**

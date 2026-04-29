@@ -16,6 +16,9 @@ return new class extends Migration
             $table->foreignId('fk_user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('fk_field_id')->constrained('fields')->onDelete('cascade');
             $table->string('team_name', 50);
+            $table->string('customer_phone', 50)->default('-');
+            $table->string('customer_email', 50)->default('-');
+            $table->string('notes', 50)->default('-');
             $table->date('booking_date');
             $table->timestamps();
         });

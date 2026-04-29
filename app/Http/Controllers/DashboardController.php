@@ -9,6 +9,7 @@ use App\Models\BookingDetail;
 use App\Models\FieldPrice;
 use Illuminate\Http\JsonResponse;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB; // Pastikan ini ditambahkan
 
 class DashboardController extends Controller
 {
@@ -19,27 +20,55 @@ class DashboardController extends Controller
             $fieldId = $request->field_id;
             $today = Carbon::now()->format('Y-m-d');
             $dayType = strtolower(Carbon::now()->englishDayOfWeek);
+            $user = $request->user();
 
-            // Cari field: gunakan field_id jika ada, else cari category mini soccer
-            $field = $fieldId
-                ? Field::find($fieldId)
-                : Field::where('category', 'mini soccer')->first();
+            // 1. Base Query untuk Lapangan
+            $fieldQuery = Field::query();
 
-            if (!$field) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Field not found',
-                    'data' => null
-                ], 404);
+            // 2. FILTER BERDASARKAN HAK AKSES WORKER (Tabel field_admins)
+            if ($user && $user->role === 'worker') {
+                $fieldQuery->whereIn('id', function($q) use ($user) {
+                    $q->select('fk_field_id')
+                      ->from('field_admins')
+                      ->where('fk_user_id', $user->id);
+                });
+            }
+
+            // 3. Menentukan Lapangan mana yang akan ditampilkan datanya
+            if ($fieldId) {
+                // Jika request meminta field tertentu, pastikan field tersebut ada di dalam hak aksesnya
+                $field = $fieldQuery->where('id', $fieldId)->first();
+
+                if (!$field) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Anda tidak memiliki hak akses ke lapangan ini atau lapangan tidak ditemukan.',
+                        'data' => null
+                    ], 403);
+                }
+            } else {
+                // Jika tidak ada field_id yang direquest, ambil lapangan PERTAMA yang boleh diakses worker
+                $field = $fieldQuery->first();
+
+                // Jika worker ternyata belum ditugaskan ke lapangan manapun oleh Super Admin
+                if (!$field) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Anda belum ditugaskan ke lapangan manapun. Hubungi Admin.',
+                        'data' => [
+                            'name' => 'Belum Ada Lapangan',
+                            'slotTerisi' => 0,
+                            'totalSlot' => 0,
+                            'slotKosong' => 0,
+                            'totalBooking' => 0,
+                        ]
+                    ], 404);
+                }
             }
 
             // ============================================
             // HITUNG SLOT TERISI (Booking yang ACTIVE)
             // ============================================
-            // Ambil semua booking_details yang:
-            // 1. Status = 'active' (sudah terkonfirmasi)
-            // 2. play_date = hari ini
-            // 3. Dari field yang sama
             $slotTerisi = BookingDetail::where('status', 'active')
                 ->whereDate('play_date', $today)
                 ->whereHas('booking', function ($query) use ($field) {
@@ -50,8 +79,6 @@ class DashboardController extends Controller
             // ============================================
             // HITUNG TOTAL SLOT TERSEDIA
             // ============================================
-            // Jumlah slot yang tersedia untuk hari ini
-            // 1 slot = 1 jam (misal: 08:00-09:00, 09:00-10:00, dst)
             $totalSlot = FieldPrice::where('fk_field_id', $field->id)
                 ->where('day_type', $dayType)
                 ->count();
@@ -64,8 +91,6 @@ class DashboardController extends Controller
             // ============================================
             // HITUNG TOTAL BOOKING HARI INI
             // ============================================
-            // Jumlah DISTINCT bookings (order) yang masuk hari ini
-            // 1 booking bisa punya multiple booking_details (multiple slots)
             $totalBooking = Booking::where('fk_field_id', $field->id)
                 ->whereHas('details', function ($query) use ($today) {
                     $query->whereDate('play_date', $today)

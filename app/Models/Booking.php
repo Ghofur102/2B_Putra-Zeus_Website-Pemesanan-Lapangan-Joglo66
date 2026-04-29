@@ -15,7 +15,7 @@ class Booking extends Model
     protected $table = 'bookings';
 
     protected $fillable = [
-        'fk_user_id', 'fk_field_id', 'booking_date', 'team_name',
+        'fk_user_id', 'fk_field_id', 'booking_date', 'team_name', 'customer_phone', 'customer_email', 'notes'
     ];
 
     public function user(): BelongsTo

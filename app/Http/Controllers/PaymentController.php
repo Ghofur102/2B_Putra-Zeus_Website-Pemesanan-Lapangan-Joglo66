@@ -33,6 +33,8 @@ class PaymentController extends Controller
         }
 
         $payload = $validator->validated();
+
+        // Ambil data booking beserta field-nya (untuk dicek nanti)
         $booking = Booking::with('details')->find($payload['booking_id']);
 
         if (! $booking) {
@@ -41,6 +43,26 @@ class PaymentController extends Controller
                 'message' => 'Booking not found.',
             ], 400);
         }
+
+        // ==============================================================
+        // TAMBAHAN KEAMANAN: Validasi Hak Akses Worker (Data Scoping)
+        // ==============================================================
+        $user = $request->user();
+
+        if ($user && $user->role === 'worker') {
+            $isAuthorized = DB::table('field_admins')
+                ->where('fk_user_id', $user->id)
+                ->where('fk_field_id', $booking->fk_field_id) // Cek field_id milik booking ini
+                ->exists();
+
+            if (!$isAuthorized) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Forbidden. Anda tidak memiliki akses untuk memproses pembayaran di lapangan ini.',
+                ], 403);
+            }
+        }
+        // ==============================================================
 
         if ($booking->details->isEmpty()) {
             return response()->json([
@@ -56,12 +78,64 @@ class PaymentController extends Controller
             ], 400);
         }
 
-        if (! empty($payload['booking_detail_id'])) {
-            $detail = $booking->details->firstWhere('id', $payload['booking_detail_id']);
-            if (! $detail) {
+        // ==============================================================
+        // TAMBAHAN KEAMANAN: PROTEKSI DOUBLE PAYMENT & OVERPAYMENT
+        // ==============================================================
+        $totalPrice = $booking->details->sum('price');
+
+        // Hitung total uang bersih yang sudah masuk (Pembayaran - Pengembalian)
+        $totalPaid = Payment::where('fk_booking_id', $booking->id)
+            ->where('status', 'success')
+            ->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])
+            ->sum('amount');
+
+        $totalRefunded = Payment::where('fk_booking_id', $booking->id)
+            ->where('status', 'success')
+            ->where('payment_type', 'refund')
+            ->sum('amount');
+
+        $netPaid = $totalPaid - $totalRefunded;
+
+        // 3. Jika yang dibayar adalah Tagihan Masuk (DP, Final, atau Reschedule Fee)
+        if (in_array($payload['payment_type'], ['down payment', 'final payment', 'reschedule fee'])) {
+
+            // Tolak jika sudah lunas
+            if ($netPaid >= $totalPrice) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Booking detail does not belong to the selected booking.',
+                    'message' => 'Pesanan ini sudah lunas sepenuhnya. Tidak dapat memproses pembayaran lagi.',
+                ], 400);
+            }
+
+            // Tolak jika nominal melebihi sisa tagihan
+            if (($netPaid + $payload['amount']) > $totalPrice) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Nominal pembayaran melebihi sisa tagihan. Sisa tagihan saat ini adalah: Rp ' . number_format($totalPrice - $netPaid, 0, ',', '.'),
+                ], 400);
+            }
+
+            // Tolak jika DP dua kali
+            $hasDownPayment = Payment::where('fk_booking_id', $booking->id)
+                ->where('payment_type', 'down payment')
+                ->where('status', 'success')
+                ->exists();
+
+            if ($payload['payment_type'] === 'down payment' && $hasDownPayment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Down Payment (DP) sudah dibayarkan sebelumnya. Silakan pilih Final Payment (Pelunasan).',
+                ], 400);
+            }
+        }
+
+        // 4. Jika memproses PENGEMBALIAN DANA (Refund)
+        elseif ($payload['payment_type'] === 'refund') {
+            // Tidak boleh refund uang yang melebihi jumlah yang sudah pernah dibayarkan
+            if ($payload['amount'] > $netPaid) {
+                 return response()->json([
+                    'success' => false,
+                    'message' => 'Nominal refund melebihi total uang yang telah dibayarkan (Maksimal Refund: Rp ' . number_format($netPaid, 0, ',', '.') . ').',
                 ], 400);
             }
         }
@@ -91,7 +165,8 @@ class PaymentController extends Controller
                     'paid_at' => $paymentStatus === 'success' ? now() : null,
                 ]);
 
-                if ($payload['payment_type'] === 'down payment') {
+
+                if (in_array($payload['payment_type'], ['down payment', 'final payment'])) {
                     $booking->details()->where('status', 'waiting')->update(['status' => 'active']);
                 }
 

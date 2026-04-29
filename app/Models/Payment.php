@@ -8,11 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Payment extends Model
 {
     protected $connection = 'mysql_joglo66_app';
-
     protected $table = 'payments';
 
     protected $fillable = [
-        'fk_booking_id', 'reference_id', 'payment_url', 'payment_type', 'method', 'amount', 'status', 'paid_at',
+        'fk_booking_id', 'fk_booking_detail_id', 'reference_id', 'payment_url', 'payment_type', 'method', 'amount', 'status', 'paid_at',
     ];
 
     public function booking(): BelongsTo
