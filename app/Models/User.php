@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password',
         'phone',
         'role',
+        'email_verified_at',
     ];
 
     protected $connection = 'mysql_joglo66_app';
@@ -77,5 +78,10 @@ class User extends Authenticatable
     public function fieldClosure(): HasMany
     {
         return $this->hasMany(FieldClosure::class, 'fk_user_id', 'id');
+    }
+
+    public function emailVerificationTokens(): HasMany
+    {
+        return $this->hasMany(EmailVerificationToken::class, 'user_id', 'id');
     }
 }

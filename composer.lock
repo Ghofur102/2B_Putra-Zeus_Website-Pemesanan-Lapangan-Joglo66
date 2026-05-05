@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "940ef2462b199bc568d047788350a333",
+    "content-hash": "c14d692e3f7b86d5f07639f7400823d3",
     "packages": [
         {
             "name": "brick/math",
@@ -3364,6 +3364,132 @@
             "time": "2025-12-14T04:43:48+00:00"
         },
         {
+            "name": "resend/resend-laravel",
+            "version": "v1.3.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/resend/resend-laravel.git",
+                "reference": "49773f31e9e7753f596f8459b6a8200525ffde0c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/resend/resend-laravel/zipball/49773f31e9e7753f596f8459b6a8200525ffde0c",
+                "reference": "49773f31e9e7753f596f8459b6a8200525ffde0c",
+                "shasum": ""
+            },
+            "require": {
+                "illuminate/http": "^10.0|^11.0|^12.0|^13.0",
+                "illuminate/support": "^10.0|^11.0|^12.0|^13.0",
+                "php": "^8.1",
+                "resend/resend-php": "^1.0.0",
+                "symfony/mailer": "^6.2|^7.0|^8.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.14",
+                "mockery/mockery": "^1.5",
+                "orchestra/testbench": "^8.17|^9.0|^10.8|^11.0",
+                "pestphp/pest": "^1.0|^2.0|^3.7|^4.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Resend\\Laravel\\ResendServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Resend\\Laravel\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Resend and contributors",
+                    "homepage": "https://github.com/resend/resend-laravel/contributors"
+                }
+            ],
+            "description": "Resend for Laravel",
+            "homepage": "https://resend.com/",
+            "keywords": [
+                "api",
+                "client",
+                "laravel",
+                "php",
+                "resend",
+                "sdk"
+            ],
+            "support": {
+                "issues": "https://github.com/resend/resend-laravel/issues",
+                "source": "https://github.com/resend/resend-laravel/tree/v1.3.2"
+            },
+            "time": "2026-03-27T02:11:50+00:00"
+        },
+        {
+            "name": "resend/resend-php",
+            "version": "v1.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/resend/resend-php.git",
+                "reference": "87d29d98271a0ab1c09cdbee102daa2f9b3419db"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/resend/resend-php/zipball/87d29d98271a0ab1c09cdbee102daa2f9b3419db",
+                "reference": "87d29d98271a0ab1c09cdbee102daa2f9b3419db",
+                "shasum": ""
+            },
+            "require": {
+                "guzzlehttp/guzzle": "^7.5",
+                "php": "^8.1.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.13",
+                "mockery/mockery": "^1.6",
+                "pestphp/pest": "^1.0|^2.0|^3.0|^4.0"
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/Resend.php"
+                ],
+                "psr-4": {
+                    "Resend\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Resend and contributors",
+                    "homepage": "https://github.com/resend/resend-php/contributors"
+                }
+            ],
+            "description": "Resend PHP library.",
+            "homepage": "https://resend.com/",
+            "keywords": [
+                "api",
+                "client",
+                "php",
+                "resend",
+                "sdk"
+            ],
+            "support": {
+                "issues": "https://github.com/resend/resend-php/issues",
+                "source": "https://github.com/resend/resend-php/tree/v1.3.0"
+            },
+            "time": "2026-04-11T10:48:32+00:00"
+        },
+        {
             "name": "symfony/clock",
             "version": "v7.4.8",
             "source": {
@@ -3443,6 +3569,7 @@
         },
         {
             "name": "symfony/console",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -3453,6 +3580,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/console/zipball/d7d2b64a45a89d607865927b176fa51c33ddbb58",
                 "reference": "d7d2b64a45a89d607865927b176fa51c33ddbb58",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/console.git",
+                "reference": "7113778e2e91f4709cb3194a75dfa9c0d028d94d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/console/zipball/7113778e2e91f4709cb3194a75dfa9c0d028d94d",
+                "reference": "7113778e2e91f4709cb3194a75dfa9c0d028d94d",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -3517,7 +3656,11 @@
                 "terminal"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/console/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/console/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -3537,6 +3680,7 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-22T15:21:55+00:00"
         },
         {
@@ -3551,6 +3695,22 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/css-selector/zipball/b75663ed96cf4756e28e3105476f220f92886cc4",
                 "reference": "b75663ed96cf4756e28e3105476f220f92886cc4",
+=======
+            "time": "2026-04-29T15:02:55+00:00"
+        },
+        {
+            "name": "symfony/css-selector",
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/css-selector.git",
+                "reference": "3665cfade90565430909b906394c73c8739e57d0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/css-selector/zipball/3665cfade90565430909b906394c73c8739e57d0",
+                "reference": "3665cfade90565430909b906394c73c8739e57d0",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -3586,7 +3746,11 @@
             "description": "Converts CSS selectors to XPath expressions",
             "homepage": "https://symfony.com",
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/css-selector/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/css-selector/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -3606,7 +3770,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-18T13:18:21+00:00"
+=======
+            "time": "2026-04-18T13:51:42+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -3759,6 +3927,7 @@
         },
         {
             "name": "symfony/event-dispatcher",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -3769,6 +3938,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/event-dispatcher/zipball/e4a2e29753c7801f7a8340e066cfa788f3bc8101",
                 "reference": "e4a2e29753c7801f7a8340e066cfa788f3bc8101",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/event-dispatcher.git",
+                "reference": "0c3c1a17604c4dbbec4b93fe162c538482096e1f"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/event-dispatcher/zipball/0c3c1a17604c4dbbec4b93fe162c538482096e1f",
+                "reference": "0c3c1a17604c4dbbec4b93fe162c538482096e1f",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -3820,7 +4001,11 @@
             "description": "Provides tools that allow your application components to communicate with each other by dispatching events and listening to them",
             "homepage": "https://symfony.com",
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/event-dispatcher/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/event-dispatcher/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -3840,7 +4025,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-18T13:18:21+00:00"
+=======
+            "time": "2026-04-18T13:51:42+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/event-dispatcher-contracts",
@@ -4273,6 +4462,7 @@
         },
         {
             "name": "symfony/mime",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -4283,6 +4473,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/mime/zipball/2d550c4758ba4c47519a6667c36553d535705b0c",
                 "reference": "2d550c4758ba4c47519a6667c36553d535705b0c",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/mime.git",
+                "reference": "a9fcb293650c054b62a5b406f4e92e7b711ea333"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/mime/zipball/a9fcb293650c054b62a5b406f4e92e7b711ea333",
+                "reference": "a9fcb293650c054b62a5b406f4e92e7b711ea333",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -4338,7 +4540,11 @@
                 "mime-type"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/mime/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/mime/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -4358,7 +4564,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-29T13:21:53+00:00"
+=======
+            "time": "2026-04-29T15:02:55+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/polyfill-ctype",
@@ -5336,6 +5546,7 @@
         },
         {
             "name": "symfony/routing",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -5346,6 +5557,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/routing/zipball/287771d8bc86eacb30678dd10eda6c64a859951f",
                 "reference": "287771d8bc86eacb30678dd10eda6c64a859951f",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/routing.git",
+                "reference": "75d1bd8e5da3424e4db2fc3ff0222cb4d0c73038"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/routing/zipball/75d1bd8e5da3424e4db2fc3ff0222cb4d0c73038",
+                "reference": "75d1bd8e5da3424e4db2fc3ff0222cb4d0c73038",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -5397,7 +5620,11 @@
                 "url"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/routing/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/routing/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -5417,7 +5644,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-22T15:21:55+00:00"
+=======
+            "time": "2026-04-29T15:02:55+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/service-contracts",
@@ -5781,6 +6012,7 @@
         },
         {
             "name": "symfony/uid",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -5791,6 +6023,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/uid/zipball/2676b524340abcfe4d6151ec698463cebafee439",
                 "reference": "2676b524340abcfe4d6151ec698463cebafee439",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/uid.git",
+                "reference": "4d9d6510bbe88ebb4608b7200d18606cdf80825c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/uid/zipball/4d9d6510bbe88ebb4608b7200d18606cdf80825c",
+                "reference": "4d9d6510bbe88ebb4608b7200d18606cdf80825c",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -5835,7 +6079,11 @@
                 "uuid"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/uid/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/uid/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -5855,7 +6103,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-30T15:19:22+00:00"
+=======
+            "time": "2026-04-30T16:10:06+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/var-dumper",
@@ -10032,6 +10284,7 @@
         },
         {
             "name": "symfony/cache",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -10042,6 +10295,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/cache/zipball/3860fa12a5013b48d445909c6ea07f870e10ba7c",
                 "reference": "3860fa12a5013b48d445909c6ea07f870e10ba7c",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/cache.git",
+                "reference": "2866a183cd942bbaa81e9fdbd1ef1ea902c5ee2d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/cache/zipball/2866a183cd942bbaa81e9fdbd1ef1ea902c5ee2d",
+                "reference": "2866a183cd942bbaa81e9fdbd1ef1ea902c5ee2d",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -10112,7 +10377,11 @@
                 "psr6"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/cache/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/cache/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -10132,7 +10401,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-29T13:21:53+00:00"
+=======
+            "time": "2026-04-29T15:02:55+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/cache-contracts",
@@ -10212,6 +10485,7 @@
         },
         {
             "name": "symfony/filesystem",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -10222,6 +10496,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/filesystem/zipball/dcd8f96bcdc0f128ec406c765cc066c6035d1be3",
                 "reference": "dcd8f96bcdc0f128ec406c765cc066c6035d1be3",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/filesystem.git",
+                "reference": "d1ec4543d5c6c2dac78503c2fae5ea0b3608ce40"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/filesystem/zipball/d1ec4543d5c6c2dac78503c2fae5ea0b3608ce40",
+                "reference": "d1ec4543d5c6c2dac78503c2fae5ea0b3608ce40",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -10258,7 +10544,11 @@
             "description": "Provides basic utilities for the filesystem",
             "homepage": "https://symfony.com",
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/filesystem/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/filesystem/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -10278,6 +10568,7 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-18T13:18:21+00:00"
         },
         {
@@ -10292,6 +10583,22 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/http-client/zipball/7e941c6abf4e3bf7dca160bf0e11ef36a9f832f6",
                 "reference": "7e941c6abf4e3bf7dca160bf0e11ef36a9f832f6",
+=======
+            "time": "2026-04-18T13:51:42+00:00"
+        },
+        {
+            "name": "symfony/http-client",
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/http-client.git",
+                "reference": "537c7f164078975b800f3f1c56810791024e4c77"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/http-client/zipball/537c7f164078975b800f3f1c56810791024e4c77",
+                "reference": "537c7f164078975b800f3f1c56810791024e4c77",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -10359,7 +10666,11 @@
                 "http"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/http-client/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/http-client/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -10379,7 +10690,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-29T13:25:15+00:00"
+=======
+            "time": "2026-04-29T15:02:55+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/http-client-contracts",
@@ -10678,6 +10993,7 @@
         },
         {
             "name": "symfony/var-exporter",
+<<<<<<< features/payment-huda
             "version": "v7.4.9",
             "source": {
                 "type": "git",
@@ -10688,6 +11004,18 @@
                 "type": "zip",
                 "url": "https://api.github.com/repos/symfony/var-exporter/zipball/22e03a49c95ef054a43601cd159b222bfab1c701",
                 "reference": "22e03a49c95ef054a43601cd159b222bfab1c701",
+=======
+            "version": "v8.0.9",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/var-exporter.git",
+                "reference": "24cf67be4dd0926e4413635418682f4fff831412"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/var-exporter/zipball/24cf67be4dd0926e4413635418682f4fff831412",
+                "reference": "24cf67be4dd0926e4413635418682f4fff831412",
+>>>>>>> main
                 "shasum": ""
             },
             "require": {
@@ -10735,7 +11063,11 @@
                 "serialize"
             ],
             "support": {
+<<<<<<< features/payment-huda
                 "source": "https://github.com/symfony/var-exporter/tree/v7.4.9"
+=======
+                "source": "https://github.com/symfony/var-exporter/tree/v8.0.9"
+>>>>>>> main
             },
             "funding": [
                 {
@@ -10755,7 +11087,11 @@
                     "type": "tidelift"
                 }
             ],
+<<<<<<< features/payment-huda
             "time": "2026-04-18T13:18:21+00:00"
+=======
+            "time": "2026-04-18T13:51:42+00:00"
+>>>>>>> main
         },
         {
             "name": "symfony/yaml",
