@@ -65,7 +65,7 @@ public function login(Request $request)
     /**
      * Handle user logout
      */
-    public function logout(Request $request)
+    public function logout()
     {
         Auth::logout();
         session()->invalidate();
@@ -171,26 +171,24 @@ public function login(Request $request)
      */
     public function sendVerificationEmail(Request $request)
     {
-        $user = Auth::guard('web')->user();
+        $user = $request->user();
 
-        // If user not authenticated, redirect to login
         if (!$user) {
             return redirect()->route('login');
         }
 
-        // If already verified, redirect to profile
         if ($user->email_verified_at !== null) {
             return redirect()->route('profile.show')
                            ->with('info', 'Email Anda sudah terverifikasi.');
         }
 
+        $response = redirect()->route('verification.notice');
+
         try {
-            // Delete old tokens for this user
             EmailVerificationToken::where('user_id', $user->id)
                                  ->where('type', 'verify')
                                  ->delete();
 
-            // Generate new verification token (valid 24 hours)
             $token = Str::random(64);
             EmailVerificationToken::create([
                 'user_id' => $user->id,
@@ -201,15 +199,14 @@ public function login(Request $request)
                 'expires_at' => now()->addHours(24),
             ]);
 
-            // Send verification email
             Mail::to($user->email)->send(new VerifyEmailMail($user, $token));
 
-            return redirect()->route('verification.notice')
-                           ->with('success', 'Email verifikasi telah dikirim ulang. Silakan cek inbox atau folder spam Anda.');
+            $response = $response->with('success', 'Email verifikasi telah dikirim ulang. Silakan cek inbox atau folder spam Anda.');
         } catch (\Exception $e) {
-            return redirect()->route('verification.notice')
-                           ->with('error', 'Gagal mengirim email: ' . $e->getMessage());
+            $response = $response->with('error', 'Gagal mengirim email: ' . $e->getMessage());
         }
+
+        return $response;
     }
 }
 
