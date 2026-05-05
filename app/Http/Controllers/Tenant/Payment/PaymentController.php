@@ -142,22 +142,7 @@ class PaymentController extends Controller
             return redirect()->route('payment.index')->withErrors(['reference' => 'Pembayaran tidak ditemukan.']);
         }
 
-        // Set session transaksi untuk halaman status dan bukti
-        session(['transaksi' => [
-            'id' => $payment->reference_id,
-            'statusBayar' => $payment->status === 'success' ? 'sukses' : ($payment->status === 'failed' ? 'gagal' : 'pending'),
-            'totalBayar' => $payment->amount,
-            'metodeBayar' => $payment->method,
-            'tanggalBayar' => $payment->paid_at ? $payment->paid_at->format('Y-m-d H:i:s') : null,
-            'nama' => $payment->booking->user->name ?? '-',
-            'lapangan' => $payment->booking->field->name,
-            'tanggal' => $payment->booking->booking_date,
-            'jam' => optional($payment->booking->details->first())->start_play_time . ' – ' . optional($payment->booking->details->first())->end_play_time,
-            'durasi' => $payment->booking->details->first() ? $this->hitungDurasi($payment->booking->details->first()->start_play_time, $payment->booking->details->first()->end_play_time) : '-',
-            'metode' => $payment->method,
-            'tipe' => $payment->payment_type,
-            'nominal' => $payment->amount,
-        ]]);
+        $this->setTransaksiSession($payment);
 
         return redirect()->route('status.index');
     }
@@ -204,21 +189,7 @@ class PaymentController extends Controller
             default   => 'pending',
         };
 
-        session(['transaksi' => [
-            'id'          => $payment->reference_id,
-            'statusBayar' => $statusBayar,
-            'totalBayar'  => $payment->amount,
-            'metodeBayar' => $payment->method,
-            'tanggalBayar'=> $payment->paid_at ? $payment->paid_at->format('Y-m-d H:i:s') : null,
-            'nama'        => $payment->booking->user->name ?? '-',
-            'lapangan'    => $payment->booking->field->name ?? '-',
-            'tanggal'     => $payment->booking->booking_date ?? '-',
-            'jam'         => optional($payment->booking->details->first())->start_play_time . ' – ' . optional($payment->booking->details->first())->end_play_time,
-            'durasi'      => $payment->booking->details->first() ? $this->hitungDurasi($payment->booking->details->first()->start_play_time, $payment->booking->details->first()->end_play_time) : '-',
-            'metode'      => $payment->method,
-            'tipe'        => $payment->payment_type,
-            'nominal'     => $payment->amount,
-        ]]);
+        $this->setTransaksiSession($payment);
 
         return redirect()->route('status.index');
     }
@@ -237,21 +208,7 @@ class PaymentController extends Controller
             default   => 'pending',
         };
 
-        session(['transaksi' => [
-            'id'          => $payment->reference_id,
-            'statusBayar' => $statusBayar,
-            'totalBayar'  => $payment->amount,
-            'metodeBayar' => $payment->method,
-            'tanggalBayar'=> $payment->paid_at ? $payment->paid_at->format('Y-m-d H:i:s') : null,
-            'nama'        => $payment->booking->user->name ?? '-',
-            'lapangan'    => $payment->booking->field->name ?? '-',
-            'tanggal'     => $payment->booking->booking_date ?? '-',
-            'jam'         => optional($payment->booking->details->first())->start_play_time . ' – ' . optional($payment->booking->details->first())->end_play_time,
-            'durasi'      => $payment->booking->details->first() ? $this->hitungDurasi($payment->booking->details->first()->start_play_time, $payment->booking->details->first()->end_play_time) : '-',
-            'metode'      => $payment->method,
-            'tipe'        => $payment->payment_type,
-            'nominal'     => $payment->amount,
-        ]]);
+        $this->setTransaksiSession($payment);
 
         return redirect()->route('status.index');
     }
@@ -299,6 +256,31 @@ class PaymentController extends Controller
             'tanggalBayar' => now()->translatedFormat('d F Y'),
             'badgeStyle'   => $badgeStyle,
         ]);
+    }
+
+    private function setTransaksiSession(Payment $payment): void
+    {
+        $statusBayar = match($payment->status) {
+            'success' => 'sukses',
+            'failed'  => 'gagal',
+            default   => 'pending',
+        };
+
+        session(['transaksi' => [
+            'id'          => $payment->reference_id,
+            'statusBayar' => $statusBayar,
+            'totalBayar'  => $payment->amount,
+            'metodeBayar' => $payment->method,
+            'tanggalBayar'=> $payment->paid_at ? $payment->paid_at->format('Y-m-d H:i:s') : null,
+            'nama'        => $payment->booking->user->name ?? '-',
+            'lapangan'    => $payment->booking->field->name ?? '-',
+            'tanggal'     => $payment->booking->booking_date ?? '-',
+            'jam'         => optional($payment->booking->details->first())->start_play_time . ' – ' . optional($payment->booking->details->first())->end_play_time,
+            'durasi'      => $payment->booking->details->first() ? $this->hitungDurasi($payment->booking->details->first()->start_play_time, $payment->booking->details->first()->end_play_time) : '-',
+            'metode'      => $payment->method,
+            'tipe'        => $payment->payment_type,
+            'nominal'     => $payment->amount,
+        ]]);
     }
 
     private function hitungDurasi(string $start, string $end): string
