@@ -434,38 +434,38 @@
                     <input type="hidden" id="formFieldId" name="field_id">
                     <input type="hidden" id="formBookingDate" name="booking_date">
                     <input type="hidden" id="formSelectedSlots" name="selected_slots">
-                    
+
                     <!-- Team Name -->
                     <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Nama Tim <span style="color: #ef4444;">*</span></label>
-                        <input type="text" name="team_name" required maxlength="50" placeholder="Masukkan nama tim" 
+                        <label for="team_name" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Nama Tim <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="team_name" name="team_name" required maxlength="50" placeholder="Masukkan nama tim"
                                style="width: 100%; padding: 0.75rem; border: 0.5px solid var(--color-border); border-radius: 0.375rem; font-size: 0.95rem;">
                     </div>
-                    
+
                     <!-- Phone -->
                     <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Nomor Telepon <span style="color: #ef4444;">*</span></label>
-                        <input type="tel" name="customer_phone" required placeholder="Contoh: 081234567890" 
+                        <label for="customer_phone" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Nomor Telepon <span style="color: #ef4444;">*</span></label>
+                        <input type="tel" id="customer_phone" name="customer_phone" required placeholder="Contoh: 081234567890"
                                style="width: 100%; padding: 0.75rem; border: 0.5px solid var(--color-border); border-radius: 0.375rem; font-size: 0.95rem;">
                     </div>
-                    
+
                     <!-- Email -->
                     <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Email <span style="color: #ef4444;">*</span></label>
-                        <input type="email" name="customer_email" required placeholder="Contoh: nama@email.com" 
+                        <label for="customer_email" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Email <span style="color: #ef4444;">*</span></label>
+                        <input type="email" id="customer_email" name="customer_email" required placeholder="Contoh: nama@email.com"
                                style="width: 100%; padding: 0.75rem; border: 0.5px solid var(--color-border); border-radius: 0.375rem; font-size: 0.95rem;">
                     </div>
-                    
+
                     <!-- Notes -->
                     <div style="margin-bottom: 2rem;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Catatan (Opsional)</label>
-                        <textarea name="notes" maxlength="500" placeholder="Tambahkan catatan khusus jika ada" 
+                        <label for="notes" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--color-text);">Catatan (Opsional)</label>
+                        <textarea id="notes" name="notes" maxlength="500" placeholder="Tambahkan catatan khusus jika ada"
                                   style="width: 100%; padding: 0.75rem; border: 0.5px solid var(--color-border); border-radius: 0.375rem; font-size: 0.95rem; min-height: 100px; font-family: inherit;"></textarea>
                     </div>
-                    
+
                     <!-- Buttons -->
                     <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                        <button type="button" onclick="document.getElementById('bookingForm').style.display = 'none'" 
+                        <button type="button" onclick="document.getElementById('bookingForm').style.display = 'none'"
                                 class="btn btn-secondary" style="padding: 0.75rem 1.5rem;">
                             Ubah Pilihan Slot
                         </button>

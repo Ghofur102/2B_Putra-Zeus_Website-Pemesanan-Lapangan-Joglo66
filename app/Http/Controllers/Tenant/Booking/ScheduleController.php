@@ -34,14 +34,15 @@ class ScheduleController extends Controller
      */
     public function fetchSlots(Request $request)
     {
-        $fieldId = $request->input('field_id');
-        $date = $request->input('date'); // format: Y-m-d
-
-        if (!$fieldId || !$date) {
-            return response()->json(['error' => 'Invalid parameters'], 400);
-        }
-
         try {
+            // Validate input
+            $fieldId = $request->input('field_id');
+            $date = $request->input('date'); // format: Y-m-d
+
+            if (!$fieldId || !$date) {
+                return response()->json(['error' => 'Invalid parameters'], 400);
+            }
+
             $bookingDate = Carbon::createFromFormat('Y-m-d', $date);
             $field = Field::with('fieldPrices')->findOrFail($fieldId);
 
@@ -68,56 +69,98 @@ class ScheduleController extends Controller
                 return response()->json(['slots' => [], 'message' => 'Tidak ada harga untuk hari ini']);
             }
 
-            $slots = [];
-
-            foreach ($fieldPrices as $price) {
-                // Generate 1-hour slots
-                // Parse time - handle both H:i and H:i:s formats
-                $startTimeStr = substr($price->start_time, 0, 5); // Get HH:mm
-                $endTimeStr = substr($price->end_time, 0, 5);
-                
-                $startTime = Carbon::createFromFormat('H:i', $startTimeStr);
-                $endTime = Carbon::createFromFormat('H:i', $endTimeStr);
-
-                while ($startTime < $endTime) {
-                    $slotStart = $startTime->format('H:i');
-                    $slotEnd = $startTime->addHour()->format('H:i');
-
-                    // Check if this slot is booked
-                    $isBooked = BookingDetail::where('play_date', $bookingDate->format('Y-m-d'))
-                        ->where('start_play_time', $slotStart)
-                        ->where('end_play_time', $slotEnd)
-                        ->whereIn('status', ['active', 'waiting'])
-                        ->exists();
-
-                    // Check if field is closed during this time
-                    $isClosed = FieldClosure::where('fk_field_id', $fieldId)
-                        ->where(function ($query) use ($bookingDate, $slotStart, $slotEnd) {
-                            // Parse slot times
-                            $slotStartDt = $bookingDate->clone()->setTimeFromTimeString($slotStart);
-                            $slotEndDt = $bookingDate->clone()->setTimeFromTimeString($slotEnd);
-                            
-                            // Check if closure overlaps with this slot
-                            $query->where('field_closure_start_time', '<', $slotEndDt)
-                                  ->where('field_closure_end_time', '>', $slotStartDt);
-                        })
-                        ->exists();
-
-                    $status = $isClosed ? 'tutup' : ($isBooked ? 'terisi' : 'kosong');
-
-                    $slots[] = [
-                        'jam' => $slotStart,
-                        'jam_akhir' => $slotEnd,
-                        'status' => $status,
-                        'harga' => $price->price,
-                    ];
-                }
-            }
+            $slots = $this->generateAvailableSlots(
+                $fieldPrices,
+                $fieldId,
+                $bookingDate
+            );
 
             return response()->json(['slots' => $slots]);
 
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 400);
         }
+    }
+
+    /**
+     * Generate available slots for a given field and date
+     *
+     * @param \Illuminate\Database\Eloquent\Collection $fieldPrices
+     * @param int $fieldId
+     * @param \Carbon\Carbon $bookingDate
+     * @return array
+     */
+    private function generateAvailableSlots($fieldPrices, $fieldId, $bookingDate)
+    {
+        $slots = [];
+
+        foreach ($fieldPrices as $price) {
+            // Generate 1-hour slots
+            // Parse time - handle both H:i and H:i:s formats
+            $startTimeStr = substr($price->start_time, 0, 5); // Get HH:mm
+            $endTimeStr = substr($price->end_time, 0, 5);
+
+            $startTime = Carbon::createFromFormat('H:i', $startTimeStr);
+            $endTime = Carbon::createFromFormat('H:i', $endTimeStr);
+
+            while ($startTime < $endTime) {
+                $slotStart = $startTime->format('H:i');
+                $slotEnd = $startTime->addHour()->format('H:i');
+
+                $status = $this->getSlotStatus(
+                    $fieldId,
+                    $bookingDate,
+                    $slotStart,
+                    $slotEnd
+                );
+
+                $slots[] = [
+                    'jam' => $slotStart,
+                    'jam_akhir' => $slotEnd,
+                    'status' => $status,
+                    'harga' => $price->price,
+                ];
+            }
+        }
+
+        return $slots;
+    }
+
+    /**
+     * Determine the status of a slot (tutup, terisi, or kosong)
+     *
+     * @param int $fieldId
+     * @param \Carbon\Carbon $bookingDate
+     * @param string $slotStart
+     * @param string $slotEnd
+     * @return string
+     */
+    private function getSlotStatus($fieldId, $bookingDate, $slotStart, $slotEnd)
+    {
+        // Check if field is closed during this time
+        $isClosed = FieldClosure::where('fk_field_id', $fieldId)
+            ->where(function ($query) use ($bookingDate, $slotStart, $slotEnd) {
+                // Parse slot times
+                $slotStartDt = $bookingDate->clone()->setTimeFromTimeString($slotStart);
+                $slotEndDt = $bookingDate->clone()->setTimeFromTimeString($slotEnd);
+
+                // Check if closure overlaps with this slot
+                $query->where('field_closure_start_time', '<', $slotEndDt)
+                      ->where('field_closure_end_time', '>', $slotStartDt);
+            })
+            ->exists();
+
+        if ($isClosed) {
+            return 'tutup';
+        }
+
+        // Check if this slot is booked
+        $isBooked = BookingDetail::where('play_date', $bookingDate->format('Y-m-d'))
+            ->where('start_play_time', $slotStart)
+            ->where('end_play_time', $slotEnd)
+            ->whereIn('status', ['active', 'waiting'])
+            ->exists();
+
+        return $isBooked ? 'terisi' : 'kosong';
     }
 }

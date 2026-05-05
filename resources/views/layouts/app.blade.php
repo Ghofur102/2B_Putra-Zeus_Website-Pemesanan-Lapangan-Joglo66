@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', 'Booking Lapangan')</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com" integrity="sha384-QWLvepQWoO8+K8F7XhzizhPQAuvC0MsNDqw47Pm3zKZY0x5GrSIDBVEFZLES/G1M" crossorigin="anonymous"></script>
 </head>
 <body class="bg-gray-50">
     <nav class="bg-white shadow-sm">
