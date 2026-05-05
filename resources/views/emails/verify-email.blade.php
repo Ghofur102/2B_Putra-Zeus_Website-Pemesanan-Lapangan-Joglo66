@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="id" xml:lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifikasi Email - Joglo66</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -72,9 +73,9 @@
 
             <p>Terima kasih telah mendaftar di Joglo66! Silakan verifikasi email Anda dengan mengklik tombol di bawah:</p>
 
-            <center>
+            <div style="text-align: center;">
                 <a href="{{ $verifyUrl }}" class="button">Verifikasi Email</a>
-            </center>
+            </div>
 
             <p>Atau copy link berikut ke browser Anda:</p>
             <p style="word-break: break-all; background-color: #f9f9f9; padding: 10px; border-radius: 3px;">
