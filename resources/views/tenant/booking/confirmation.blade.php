@@ -54,10 +54,10 @@
                         <label for="team_name" class="block text-sm font-medium text-gray-700 mb-2">
                             Nama Tim <span class="text-red-500">*</span>
                         </label>
-                        <input 
-                            type="text" 
-                            id="team_name" 
-                            name="team_name" 
+                        <input
+                            type="text"
+                            id="team_name"
+                            name="team_name"
                             required
                             maxlength="50"
                             value="{{ old('team_name') }}"
@@ -74,10 +74,10 @@
                         <label for="customer_phone" class="block text-sm font-medium text-gray-700 mb-2">
                             Nomor Telepon <span class="text-red-500">*</span>
                         </label>
-                        <input 
-                            type="tel" 
-                            id="customer_phone" 
-                            name="customer_phone" 
+                        <input
+                            type="tel"
+                            id="customer_phone"
+                            name="customer_phone"
                             required
                             maxlength="50"
                             value="{{ old('customer_phone') }}"
@@ -94,10 +94,10 @@
                         <label for="customer_email" class="block text-sm font-medium text-gray-700 mb-2">
                             Email <span class="text-red-500">*</span>
                         </label>
-                        <input 
-                            type="email" 
-                            id="customer_email" 
-                            name="customer_email" 
+                        <input
+                            type="email"
+                            id="customer_email"
+                            name="customer_email"
                             required
                             maxlength="50"
                             value="{{ old('customer_email') }}"
@@ -114,9 +114,9 @@
                         <label for="notes" class="block text-sm font-medium text-gray-700 mb-2">
                             Catatan (Opsional)
                         </label>
-                        <textarea 
-                            id="notes" 
-                            name="notes" 
+                        <textarea
+                            id="notes"
+                            name="notes"
                             maxlength="50"
                             rows="3"
                             placeholder="Catatan tambahan (misal: no. jersey, preferensi lapangan, dll)"
@@ -140,8 +140,8 @@
                         <a href="javascript:history.back()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg text-center transition duration-200">
                             Kembali
                         </a>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             class="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
                         >
                             Konfirmasi & Lanjut Pembayaran

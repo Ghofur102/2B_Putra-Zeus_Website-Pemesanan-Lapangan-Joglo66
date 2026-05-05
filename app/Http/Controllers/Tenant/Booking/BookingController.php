@@ -7,6 +7,7 @@ use App\Models\Field;
 use App\Models\Booking;
 use App\Models\BookingDetail;
 use App\Models\FieldClosure;
+use App\Exceptions\BookingException;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 use DB;
@@ -52,75 +53,159 @@ class BookingController extends Controller
         // Get field
         $field = Field::findOrFail($fieldId);
 
-        // Parse selected slots from form - decode JSON array first
-        $selectedSlotsInput = $validated['selected_slots'];
-        
-        // Decode JSON if it's a string
-        if (is_string($selectedSlotsInput)) {
-            $decoded = json_decode($selectedSlotsInput, true);
-            $selectedSlotsInput = $decoded ?: [$selectedSlotsInput];
-        }
-        
-        // Ensure it's an array
-        if (!is_array($selectedSlotsInput)) {
-            $selectedSlotsInput = [$selectedSlotsInput];
-        }
+        // Parse and validate selected slots
+        $slotResult = $this->parseAndValidateSlots(
+            $validated['selected_slots'],
+            $field,
+            $bookingDate
+        );
 
-        $selectedSlots = [];
-        $totalPrice = 0;
-
-        foreach ($selectedSlotsInput as $slotData) {
-            // slotData format: "HH:mm|HH:mm"
-            $parts = explode('|', $slotData);
-            $startTime = trim($parts[0] ?? null);
-            $endTime = trim($parts[1] ?? null);
-
-            if (!$startTime || !$endTime) {
-                continue;
-            }
-
-            // Get price for this slot
-            $dayName = strtolower($bookingDate->format('l'));
-            $dayTypeMap = [
-                'monday' => 'monday',
-                'tuesday' => 'tuesday',
-                'wednesday' => 'wednesday',
-                'thursday' => 'thursday',
-                'friday' => 'friday',
-                'saturday' => 'saturday',
-                'sunday' => 'sunday',
-            ];
-            $dayType = $dayTypeMap[$dayName];
-
-            $price = $field->fieldPrices()
-                ->where('day_type', $dayType)
-                ->where('start_time', '<=', $startTime)
-                ->where('end_time', '>=', $endTime)
-                ->first();
-
-            if (!$price) {
-                return redirect()->back()->with('error', 'Slot tidak valid atau harga tidak ditemukan.');
-            }
-
-            $selectedSlots[] = [
-                'start_time' => $startTime,
-                'end_time' => $endTime,
-                'price' => $price->price,
-            ];
-
-            $totalPrice += $price->price;
-        }
-
-        if (empty($selectedSlots)) {
-            return redirect()->back()->with('error', 'Pilih minimal satu slot pemesanan.');
+        if ($slotResult['error']) {
+            return redirect()->back()->with('error', $slotResult['error']);
         }
 
         return view('tenant.booking.confirmation', [
             'field' => $field,
             'booking_date' => $bookingDate,
-            'selected_slots' => $selectedSlots,
-            'total_price' => $totalPrice,
+            'selected_slots' => $slotResult['slots'],
+            'total_price' => $slotResult['total_price'],
         ]);
+    }
+
+    /**
+     * Parse, normalize, and validate selected slots
+     *
+     * @param mixed $selectedSlotsInput
+     * @param Field $field
+     * @param Carbon $bookingDate
+     * @return array
+     */
+    private function parseAndValidateSlots($selectedSlotsInput, $field, $bookingDate)
+    {
+        // Normalize input to array
+        $selectedSlotsInput = $this->normalizeSlotInput($selectedSlotsInput);
+
+        $selectedSlots = [];
+        $totalPrice = 0;
+
+        foreach ($selectedSlotsInput as $slotData) {
+            $slotInfo = $this->processSlot($slotData, $field, $bookingDate);
+
+            if ($slotInfo['error']) {
+                return [
+                    'error' => $slotInfo['error'],
+                    'slots' => [],
+                    'total_price' => 0,
+                ];
+            }
+
+            $selectedSlots[] = $slotInfo['slot'];
+            $totalPrice += $slotInfo['price'];
+        }
+
+        if (empty($selectedSlots)) {
+            return [
+                'error' => 'Pilih minimal satu slot pemesanan.',
+                'slots' => [],
+                'total_price' => 0,
+            ];
+        }
+
+        return [
+            'error' => null,
+            'slots' => $selectedSlots,
+            'total_price' => $totalPrice,
+        ];
+    }
+
+    /**
+     * Normalize slot input to array format
+     *
+     * @param mixed $input
+     * @return array
+     */
+    private function normalizeSlotInput($input)
+    {
+        if (is_string($input)) {
+            $decoded = json_decode($input, true);
+            return $decoded ?: [$input];
+        }
+
+        return is_array($input) ? $input : [$input];
+    }
+
+    /**
+     * Process and validate a single slot
+     *
+     * @param string $slotData
+     * @param Field $field
+     * @param Carbon $bookingDate
+     * @return array
+     */
+    private function processSlot($slotData, $field, $bookingDate)
+    {
+        // slotData format: "HH:mm|HH:mm"
+        $parts = explode('|', $slotData);
+        $startTime = trim($parts[0] ?? null);
+        $endTime = trim($parts[1] ?? null);
+
+        if (!$startTime || !$endTime) {
+            return [
+                'error' => null, // Skip invalid slots silently
+                'slot' => null,
+                'price' => 0,
+            ];
+        }
+
+        // Get day type
+        $dayType = $this->getDayType($bookingDate);
+
+        // Get price for this slot
+        $price = $field->fieldPrices()
+            ->where('day_type', $dayType)
+            ->where('start_time', '<=', $startTime)
+            ->where('end_time', '>=', $endTime)
+            ->first();
+
+        if (!$price) {
+            return [
+                'error' => 'Slot tidak valid atau harga tidak ditemukan.',
+                'slot' => null,
+                'price' => 0,
+            ];
+        }
+
+        return [
+            'error' => null,
+            'slot' => [
+                'start_time' => $startTime,
+                'end_time' => $endTime,
+                'price' => $price->price,
+            ],
+            'price' => $price->price,
+        ];
+    }
+
+    /**
+     * Get day type from booking date
+     *
+     * @param Carbon $bookingDate
+     * @return string
+     */
+    private function getDayType($bookingDate)
+    {
+        $dayName = strtolower($bookingDate->format('l'));
+        $dayTypeMap = [
+            'monday' => 'monday',
+            'tuesday' => 'tuesday',
+            'wednesday' => 'wednesday',
+            'thursday' => 'thursday',
+            'friday' => 'friday',
+            'saturday' => 'saturday',
+            'sunday' => 'sunday',
+        ];
+
+        return $dayTypeMap[$dayName] ?? 'monday';
     }
 
     /**
@@ -176,7 +261,7 @@ class BookingController extends Controller
                         ->exists();
 
                     if ($isBooked) {
-                        throw new \Exception("Slot {$startTime} - {$endTime} sudah dipesan. Silakan pilih slot lain.");
+                        throw new BookingException("Slot {$startTime} - {$endTime} sudah dipesan. Silakan pilih slot lain.");
                     }
                 }
 
@@ -222,7 +307,7 @@ class BookingController extends Controller
                         ->first();
 
                     if (!$price) {
-                        throw new \Exception("Harga tidak ditemukan untuk slot {$startTime} - {$endTime}");
+                        throw new BookingException("Harga tidak ditemukan untuk slot {$startTime} - {$endTime}");
                     }
 
                     $bookingDetail = new \App\Models\BookingDetail();
