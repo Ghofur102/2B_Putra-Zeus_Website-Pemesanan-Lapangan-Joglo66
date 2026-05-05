@@ -41,6 +41,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
     Route::post('/payment-booking', [PaymentController::class, 'processPayment']); // Danil
 
     Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+        return $request->user();
+    });
 });
-});
+
+Route::post('/tripay/callback', [\App\Http\Controllers\Tenant\Payment\PaymentController::class, 'tripayCallback']);
+
