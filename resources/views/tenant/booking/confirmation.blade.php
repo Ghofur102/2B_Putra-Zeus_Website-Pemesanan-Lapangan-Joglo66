@@ -1,12 +1,12 @@
 @extends('layouts.app')
+<script src="https://cdn.tailwindcss.com"></script>
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
-    <div class="max-w-2xl mx-auto">
-        <h1 class="text-3xl font-bold mb-2">Konfirmasi Pemesanan</h1>
-        <p class="text-gray-600 mb-6">Periksa kembali data pemesanan Anda sebelum melanjutkan</p>
+<div class="max-w-2xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold mb-2">Konfirmasi Pemesanan</h1>
+    <p class="text-gray-600 mb-6">Periksa kembali data pemesanan Anda sebelum melanjutkan</p>
 
-        <div class="space-y-6">
+    <div class="space-y-6">
             <!-- Selected Slots Summary -->
             <div class="bg-white rounded-lg shadow-md p-6">
                 <h2 class="text-xl font-semibold mb-4">Slot Pemesanan</h2>
@@ -160,6 +160,5 @@
                 </form>
             </div>
         </div>
-    </div>
 </div>
 @endsection

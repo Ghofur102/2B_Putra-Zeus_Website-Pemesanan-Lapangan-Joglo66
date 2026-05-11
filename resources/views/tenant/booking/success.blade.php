@@ -1,4 +1,5 @@
 @extends('layouts.app')
+<script src="https://cdn.tailwindcss.com"></script>
 
 @section('content')
 <div class="container mx-auto px-4 py-8">
