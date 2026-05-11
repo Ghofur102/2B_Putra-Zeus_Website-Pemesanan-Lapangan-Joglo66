@@ -195,7 +195,7 @@ public function login(Request $request)
                 'email' => $user->email,
                 'token' => hash('sha256', $token),
                 'type' => 'verify',
-                'created_at' => now(),
+                'created_at'             => now(),
                 'expires_at' => now()->addHours(24),
             ]);
 
