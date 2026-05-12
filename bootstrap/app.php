@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'check.field.admin' => \App\Http\Middleware\CheckFieldAdmin::class,
         ]);
+        $middleware->redirectUsersTo(fn () => route('tenant.booking.dashboard'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

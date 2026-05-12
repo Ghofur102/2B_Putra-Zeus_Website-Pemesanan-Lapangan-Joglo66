@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Tenant\Booking;
 
 use App\Http\Controllers\Controller;
-use App\Models\Field;
 use App\Models\FieldPrice;
 use App\Models\BookingDetail;
 use App\Models\FieldClosure;
@@ -12,74 +11,64 @@ use Illuminate\Http\Request;
 
 class ScheduleController extends Controller
 {
-    /**
-     * Redirect to consolidated booking form
-     * The schedule and form are now consolidated in create-form page
-     */
-    public function index(Request $request)
-    {
-        // Get field_id from query param or redirect to dashboard
-        $fieldId = $request->query('field_id');
-        if (!$fieldId) {
-            return redirect()->route('tenant.booking.dashboard')
-                ->with('info', 'Silakan pilih lapangan terlebih dahulu');
-        }
-
-        // Redirect to consolidated create-form page
-        return redirect()->route('tenant.booking.create-form', ['field_id' => $fieldId]);
-    }
-
-    /**
-     * API endpoint to fetch available slots for a date
-     */
     public function fetchSlots(Request $request)
     {
-        try {
-            // Validate input
-            $fieldId = $request->input('field_id');
-            $date = $request->input('date'); // format: Y-m-d
+        $fieldId = $request->query('field_id');
+        $date = $request->query('date');
 
-            if (!$fieldId || !$date) {
-                return response()->json(['error' => 'Invalid parameters'], 400);
+        $dayName = strtolower(Carbon::parse($date)->format('l'));
+
+        $fieldPrices = FieldPrice::where('fk_field_id', $fieldId)
+            ->where('day_type', $dayName)
+            ->get();
+
+        $bookedSlots = BookingDetail::whereHas('booking', function ($query) use ($fieldId) {
+                $query->where('fk_field_id', $fieldId);
+            })
+            ->whereDate('play_date', $date)
+            ->where('status', '!=', 'cancelled')
+            ->get();
+
+        $slots = [];
+        $startHour = 6;
+        $endHour = 23;
+
+        for ($i = $startHour; $i < $endHour; $i++) {
+            $jam = sprintf('%02d:00', $i);
+            $jamAkhir = sprintf('%02d:00', $i + 1);
+
+            $startTimeFull = $jam . ':00';
+            $endTimeFull = $jamAkhir . ':00';
+
+            $isBooked = $bookedSlots->contains(function ($booked) use ($startTimeFull, $endTimeFull) {
+                return ($startTimeFull >= $booked->start_play_time && $startTimeFull < $booked->end_play_time) ||
+                       ($endTimeFull > $booked->start_play_time && $endTimeFull <= $booked->end_play_time);
+            });
+
+            $status = $isBooked ? 'terisi' : 'kosong';
+            $harga = 0;
+
+            $matchedPrice = $fieldPrices->first(function ($price) use ($startTimeFull, $endTimeFull) {
+                return $startTimeFull >= $price->start_time && $endTimeFull <= $price->end_time;
+            });
+
+            if ($matchedPrice) {
+                $harga = $matchedPrice->price;
+            } else {
+                $status = 'tutup';
             }
 
-            $bookingDate = Carbon::createFromFormat('Y-m-d', $date);
-            $field = Field::with('fieldPrices')->findOrFail($fieldId);
-
-            // Get day type for pricing
-            $dayName = strtolower($bookingDate->format('l'));
-            $dayTypeMap = [
-                'monday' => 'monday',
-                'tuesday' => 'tuesday',
-                'wednesday' => 'wednesday',
-                'thursday' => 'thursday',
-                'friday' => 'friday',
-                'saturday' => 'saturday',
-                'sunday' => 'sunday',
-            ];
-            $dayType = $dayTypeMap[$dayName];
-
-            // Get field prices for this day
-            $fieldPrices = $field->fieldPrices()
-                ->where('day_type', $dayType)
-                ->orderBy('start_time')
-                ->get();
-
-            if ($fieldPrices->isEmpty()) {
-                return response()->json(['slots' => [], 'message' => 'Tidak ada harga untuk hari ini']);
+            if ($status !== 'tutup') {
+                $slots[] = [
+                    'jam' => $jam,
+                    'jam_akhir' => $jamAkhir,
+                    'status' => $status,
+                    'harga' => $harga
+                ];
             }
-
-            $slots = $this->generateAvailableSlots(
-                $fieldPrices,
-                $fieldId,
-                $bookingDate
-            );
-
-            return response()->json(['slots' => $slots]);
-
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
         }
+
+        return response()->json(['slots' => $slots]);
     }
 
     /**

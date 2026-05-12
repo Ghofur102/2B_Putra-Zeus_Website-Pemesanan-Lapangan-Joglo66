@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use App\Mail\VerifyEmailMail;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -25,42 +26,42 @@ class AuthController extends Controller
     /**
      * Handle user login
      */
-public function login(Request $request)
-{
-    $validated = $request->validate([
-        'email'       => ['required', 'string', 'email'],
-        'password'    => ['required', 'string'],
-        'remember_me' => ['nullable', 'boolean'],
-    ]);
-
-    // Gunakan Auth::attempt() — ini yang benar untuk 'hashed' cast
-    $credentials = [
-        'email'    => $validated['email'],
-        'password' => $validated['password'],
-    ];
-
-    // Cek kredensial TANPA login dulu
-    if (!Auth::validate($credentials)) {
-        throw ValidationException::withMessages([
-            'email' => 'Email atau password tidak sesuai',
+    public function login(Request $request)
+    {
+        $validated = $request->validate([
+            'email'       => ['required', 'string', 'email'],
+            'password'    => ['required', 'string'],
+            'remember_me' => ['nullable', 'boolean'],
         ]);
+
+        // Gunakan Auth::attempt() — ini yang benar untuk 'hashed' cast
+        $credentials = [
+            'email'    => $validated['email'],
+            'password' => $validated['password'],
+        ];
+
+        // Cek kredensial TANPA login dulu
+        if (!Auth::validate($credentials)) {
+            throw ValidationException::withMessages([
+                'email' => 'Email atau password tidak sesuai',
+            ]);
+        }
+
+        // Ambil user setelah kredensial valid
+        $user = User::where('email', $validated['email'])->first();
+
+        // Cek verifikasi email
+        if ($user->email_verified_at === null) {
+            return redirect()->route('login')
+                ->with('warning', 'Email Anda belum diverifikasi. Silakan cek inbox email.');
+        }
+
+        // Login
+        Auth::login($user, $validated['remember_me'] ?? false);
+
+        return redirect()->route('profile.show')
+            ->with('success', 'Login berhasil!');
     }
-
-    // Ambil user setelah kredensial valid
-    $user = User::where('email', $validated['email'])->first();
-
-    // Cek verifikasi email
-    if ($user->email_verified_at === null) {
-        return redirect()->route('login')
-                        ->with('warning', 'Email Anda belum diverifikasi. Silakan cek inbox email.');
-    }
-
-    // Login
-    Auth::login($user, $validated['remember_me'] ?? false);
-
-    return redirect()->route('profile.show')
-                    ->with('success', 'Login berhasil!');
-}
 
     /**
      * Handle user logout
@@ -72,7 +73,7 @@ public function login(Request $request)
         session()->regenerateToken();
 
         return redirect()->route('login')
-                       ->with('success', 'Logout berhasil');
+            ->with('success', 'Logout berhasil');
     }
 
     /**
@@ -85,32 +86,32 @@ public function login(Request $request)
 
         // Find token in database (explicit connection)
         $emailToken = EmailVerificationToken::where('token', $hashedToken)
-                                            ->where('type', 'verify')
-                                            ->first();
+            ->where('type', 'verify')
+            ->first();
 
         // Validate token
         if (!$emailToken) {
             return redirect()->route('login')
-                           ->with('error', 'Token verifikasi tidak valid');
+                ->with('error', 'Token verifikasi tidak valid');
         }
 
         if ($emailToken->isExpired()) {
             $emailToken->delete();
             return redirect()->route('login')
-                           ->with('error', 'Token verifikasi sudah kadaluarsa (24 jam)');
+                ->with('error', 'Token verifikasi sudah kadaluarsa (24 jam)');
         }
 
         if ($emailToken->isUsed()) {
             return redirect()->route('login')
-                           ->with('error', 'Token verifikasi sudah pernah digunakan');
+                ->with('error', 'Token verifikasi sudah pernah digunakan');
         }
 
         // Mark email as verified
         $user = User::find($emailToken->user_id);
-        
+
         if (!$user) {
             return redirect()->route('login')
-                           ->with('error', 'User tidak ditemukan');
+                ->with('error', 'User tidak ditemukan');
         }
 
         // Update email_verified_at
@@ -118,24 +119,24 @@ public function login(Request $request)
 
         // Verify the update actually saved to database
         $verifiedUser = $user->fresh();
-        
+
         if (!$verifiedUser->email_verified_at) {
-            \Log::error('Email verification failed to persist', [
+            Log::error('Email verification failed to persist', [
                 'user_id' => $user->id,
                 'email' => $user->email,
                 'update_result' => $updateResult,
                 'verified_user_email_verified_at' => $verifiedUser->email_verified_at,
             ]);
-            
+
             return redirect()->route('login')
-                           ->with('error', 'Verifikasi gagal: email tidak tersimpan di database');
+                ->with('error', 'Verifikasi gagal: email tidak tersimpan di database');
         }
 
         // Mark token as used
         $emailToken->markAsUsed();
 
         // Log successful verification
-        \Log::info('Email verification successful', [
+        Log::info('Email verification successful', [
             'user_id' => $user->id,
             'email' => $user->email,
             'email_verified_at' => $verifiedUser->email_verified_at,
@@ -143,7 +144,7 @@ public function login(Request $request)
         ]);
 
         return redirect()->route('login')
-                       ->with('success', 'Email berhasil diverifikasi! Silakan login sekarang.');
+            ->with('success', 'Email berhasil diverifikasi! Silakan login sekarang.');
     }
 
     /**
@@ -179,15 +180,15 @@ public function login(Request $request)
 
         if ($user->email_verified_at !== null) {
             return redirect()->route('profile.show')
-                           ->with('info', 'Email Anda sudah terverifikasi.');
+                ->with('info', 'Email Anda sudah terverifikasi.');
         }
 
         $response = redirect()->route('verification.notice');
 
         try {
             EmailVerificationToken::where('user_id', $user->id)
-                                 ->where('type', 'verify')
-                                 ->delete();
+                ->where('type', 'verify')
+                ->delete();
 
             $token = Str::random(64);
             EmailVerificationToken::create([
@@ -209,4 +210,3 @@ public function login(Request $request)
         return $response;
     }
 }
-

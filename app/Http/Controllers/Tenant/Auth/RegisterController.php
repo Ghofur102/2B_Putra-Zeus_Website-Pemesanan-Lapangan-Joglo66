@@ -8,8 +8,8 @@ use App\Models\EmailVerificationToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Auth; 
 use App\Mail\VerifyEmailMail;
-use Illuminate\Validation\Rules\Password;
 
 class RegisterController extends Controller
 {
@@ -70,7 +70,7 @@ class RegisterController extends Controller
             Mail::to($user->email)->send(new VerifyEmailMail($user, $token));
 
             // Authenticate user and redirect to verification notice
-            auth()->login($user);
+            Auth::login($user);
 
             return redirect()->route('verification.notice')
                            ->with('info', 'Registrasi berhasil! Silakan cek email Anda untuk verifikasi.');

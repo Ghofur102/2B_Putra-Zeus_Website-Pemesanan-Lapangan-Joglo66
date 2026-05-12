@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('fk_booking_detail_id')->constrained('booking_details')->onDelete('cascade');
             $table->foreignId('fk_field_closure_id')->nullable()->constrained('field_closures')->onDelete('cascade');
             $table->timestamp('cancle_date');
-            $table->enum('status_refund', ['refundable', 'non-refundable']);
+            $table->enum('status_refund', ['None', 'Full', 'Partial'])->default('None');
             $table->text('reason')->nullable();
             $table->timestamps();
         });

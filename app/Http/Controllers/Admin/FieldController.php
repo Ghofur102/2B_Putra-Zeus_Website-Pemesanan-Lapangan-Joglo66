@@ -1,19 +1,19 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Admin;
 
 use App\Models\Field;
-use App\Models\Booking;
 use App\Models\BookingDetail;
 use App\Models\FieldPrice;
 use App\Models\FieldClosure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB; // Pastikan DB Facade ditambahkan
+use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Storage;
 
 class FieldController extends Controller
 {
@@ -26,7 +26,6 @@ class FieldController extends Controller
                 ->where('fk_field_id', $fieldId)
                 ->exists();
         }
-        // Jika admin/superadmin, asumsikan boleh (tergantung business logic Anda)
         return true;
     }
 
@@ -122,23 +121,18 @@ class FieldController extends Controller
     // POST/PUT: /api/admin/update-field (Huda)
     public function update(Request $request)
     {
-         $validated = $request->validate([
+        $validated = $request->validate([
             'id' => 'required|exists:fields,id',
             'name' => 'sometimes|string|max:255',
             'description' => 'sometimes|string',
-            'image_url' => 'sometimes|url',
             'category' => 'sometimes|string|max:100',
-            // --- NEW: ACCEPT ARRAY OF PRICING RULES ---
-            'pricing_rules' => 'sometimes|array',
-            'pricing_rules.*.day_type' => 'required_with:pricing_rules|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-            'pricing_rules.*.start_time' => 'required_with:pricing_rules|date_format:H:i',
-            'pricing_rules.*.end_time' => 'required_with:pricing_rules|date_format:H:i|after:pricing_rules.*.start_time',
-            'pricing_rules.*.price' => 'required_with:pricing_rules|integer|min:0',
+            // --- VALIDASI UNTUK FILE GAMBAR ASLI ---
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
+            'pricing_rules' => 'sometimes', // Validasi mendalam akan dilakukan di bawah
         ]);
 
         $user = $request->user();
 
-        // 1. Validate Access
         if (!$this->checkFieldAccess($user, $validated['id'])) {
             return response()->json([
                 'status' => 'error',
@@ -149,25 +143,47 @@ class FieldController extends Controller
         $field = Field::findOrFail($validated['id']);
 
         try {
-            DB::transaction(function () use ($field, $validated) {
-                // 2. Update Basic Field Info
-                $fieldData = array_intersect_key($validated, array_flip(['name', 'description', 'image_url', 'category']));
+            DB::transaction(function () use ($field, $request, $validated) {
+                // 1. Update Data Teks
+                $fieldData = array_intersect_key($validated, array_flip(['name', 'description', 'category']));
+
+                // 2. PROSES UPLOAD GAMBAR FISIK
+                if ($request->hasFile('image')) {
+
+                    // Cek apakah lapangan sebelumnya sudah punya gambar
+                    if (!empty($field->image_url)) {
+                        $oldImagePath = str_replace('storage/', '', $field->image_url);
+
+                        // Jika file fisiknya benar-benar ada di dalam folder, maka hapus!
+                        if (Storage::disk('public')->exists($oldImagePath)) {
+                            Storage::disk('public')->delete($oldImagePath);
+                        }
+                    }
+                    // --------------------------------------
+
+                    // Simpan gambar baru ke folder storage/app/public/fields
+                    $imagePath = $request->file('image')->store('fields', 'public');
+                    // Buat path relatif untuk disimpan ke database
+                    $fieldData['image_url'] = 'storage/' . $imagePath;
+                }
+
                 if (!empty($fieldData)) {
                     $field->update($fieldData);
                 }
 
-                // 3. Update Pricing Rules
-                if (isset($validated['pricing_rules'])) {
-                    // Check for overlaps before deleting old records
-                    if ($this->hasPricingOverlaps($validated['pricing_rules'])) {
+                // 3. PROSES PRICING RULES (Decode dari JSON String)
+                if ($request->has('pricing_rules')) {
+                    $rules = is_string($request->pricing_rules)
+                        ? json_decode($request->pricing_rules, true)
+                        : $request->pricing_rules;
+
+                    if ($this->hasPricingOverlaps($rules)) {
                         throw new \Exception("Terdapat jadwal harga yang bentrok pada hari yang sama.");
                     }
 
-                    // Delete existing prices for this field
                     FieldPrice::where('fk_field_id', $field->id)->delete();
 
-                    // Insert new prices
-                    foreach ($validated['pricing_rules'] as $rule) {
+                    foreach ($rules as $rule) {
                         FieldPrice::create([
                             'fk_field_id' => $field->id,
                             'day_type'    => $rule['day_type'],
@@ -193,10 +209,8 @@ class FieldController extends Controller
         }
     }
 
-    // --- NEW HELPER METHOD TO PREVENT OVERLAPPING PRICE SLOTS ---
     private function hasPricingOverlaps(array $rules): bool
     {
-        // Group rules by day
         $groupedByDay = collect($rules)->groupBy('day_type');
 
         foreach ($groupedByDay as $day => $dayRules) {
@@ -208,9 +222,8 @@ class FieldController extends Controller
                     $startB = $dayRules[$j]['start_time'];
                     $endB = $dayRules[$j]['end_time'];
 
-                    // Overlap formula: (StartA < EndB) AND (EndA > StartB)
                     if ($startA < $endB && $endA > $startB) {
-                        return true; // Overlap found
+                        return true;
                     }
                 }
             }
@@ -276,13 +289,11 @@ class FieldController extends Controller
                     }
                 }
 
-                // --- PERUBAHAN DI SINI ---
-                // Masukkan SEMUA jam, tapi berikan penanda 'is_available'
                 $availableSlots[] = [
                     'start' => $slotStart,
                     'end' => $slotEnd,
                     'price' => $pricing->price,
-                    'is_available' => !$isOccupied // true jika kosong, false jika terisi
+                    'is_available' => !$isOccupied
                 ];
 
                 $current->addHour();
@@ -318,8 +329,6 @@ class FieldController extends Controller
             ], 403);
         }
 
-        // Gate::authorize('create', [FieldClosure::class, $validatedData['fk_field_id']]);
-
         $addDateFieldClosure = FieldClosure::create([
             'fk_user_id' => Auth::id(),
             'fk_field_id' => $validatedData['fk_field_id'],
@@ -329,13 +338,17 @@ class FieldController extends Controller
         ]);
 
         // Update overlapping bookings
-       BookingDetail::whereHas('booking', function($query) use ($validatedData) {
+        BookingDetail::whereHas('booking', function($query) use ($validatedData) {
                 $query->where('fk_field_id', $validatedData['fk_field_id']);
             })
             ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
                 $validatedData['field_closure_end_time'],
                 $validatedData['field_closure_start_time'],
             ])
+            // --- KUNCI PENCEGAHAN BUG ---
+            // Jangan ubah status yang memang sudah batal dari awal
+            ->where('status', '!=', 'cancelled')
+            // ----------------------------
             ->update(['status' => 'field closure']);
 
         // 2. Ambil data yang terdampak
@@ -346,7 +359,8 @@ class FieldController extends Controller
                 $validatedData['field_closure_end_time'],
                 $validatedData['field_closure_start_time'],
             ])
-            ->with('booking')
+            ->where('status', 'field closure') // Hanya kembalikan yang benar-benar tertimpa
+            ->with('booking.user')
             ->get();
 
         return response()->json([

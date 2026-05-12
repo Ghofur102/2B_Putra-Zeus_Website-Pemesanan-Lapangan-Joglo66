@@ -28,6 +28,8 @@ class ProfileController extends Controller
      */
     public function update(Request $request)
     {
+        // Memberitahu Code Editor bahwa $user adalah model App\Models\User
+        /** @var \App\Models\User $user */
         $user = Auth::guard('web')->user();
 
         $validated = $request->validate([
@@ -89,6 +91,8 @@ class ProfileController extends Controller
      */
     public function changePassword(Request $request)
     {
+        // Memberitahu Code Editor bahwa $user adalah model App\Models\User
+        /** @var \App\Models\User $user */
         $user = Auth::guard('web')->user();
 
         $validated = $request->validate([
@@ -134,4 +138,3 @@ class ProfileController extends Controller
         }
     }
 }
-
