@@ -23,7 +23,7 @@ class DuitkuController extends Controller
         $reference = $request->input('reference');
         $paymentCode = $request->input('paymentCode');
 
-        $calcSignature = md5($merchantCode . $amount . $merchantOrderId . $apiKey);
+        $calcSignature = hash('sha256', $merchantCode . $amount . $merchantOrderId . $apiKey);
 
         if ($signature !== $calcSignature) {
             Log::error('Duitku Callback: Bad Signature', $request->all());

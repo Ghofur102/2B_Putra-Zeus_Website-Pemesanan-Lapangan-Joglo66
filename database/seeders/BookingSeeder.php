@@ -17,6 +17,11 @@ class BookingSeeder extends Seeder
         $tenants = User::where('role', 'tenant')->get();
         $managers = User::where('role', 'manager')->get();
 
+        // Pastikan ada data sebelum menjalankan seeder
+        if ($fields->isEmpty() || $tenants->isEmpty() || $managers->isEmpty()) {
+            return;
+        }
+
         $statuses = ['finish', 'waiting', 'active', 'reschedule', 'cancelled', 'field closure'];
 
         foreach ($fields as $field) {
@@ -29,13 +34,14 @@ class BookingSeeder extends Seeder
 
     private function createBookingScenario($field, $tenant, $managers, $status, $faker): void
     {
-        // Penggunaan random_int untuk menghindari peringatan PRNG SonarQube
         $playDate = $this->determinePlayDate($status);
         $dpStatus = in_array($status, ['waiting']) ? 'pending' : 'success';
         $finalStatus = ($status === 'finish') ? 'success' : null;
 
         $bookingDate = $playDate->copy()->subDays(random_int(1, 5));
-        $pricePerSlot = 300000;
+
+        // Harga diset Rp 200.000 per slot agar angka bulat dan mudah dicek
+        $pricePerSlot = 200000;
 
         $bookingId = DB::table('bookings')->insertGetId([
             'fk_user_id' => $tenant->id,
@@ -44,6 +50,7 @@ class BookingSeeder extends Seeder
             'booking_date' => $bookingDate->format('Y-m-d H:i:s'),
             'customer_phone' => $faker->phoneNumber,
             'customer_email' => $tenant->email,
+            'notes' => 'Tolong bersihkan lapangan sebelum main',
             'created_at' => $bookingDate->format('Y-m-d H:i:s'),
             'updated_at' => $bookingDate->format('Y-m-d H:i:s'),
         ]);
@@ -60,9 +67,14 @@ class BookingSeeder extends Seeder
         ]);
 
         $attributeTotal = $this->attachBookingAttribute($field->id, $bookingId, $bookingDate);
-        $downPaymentAmount = ($pricePerSlot + $attributeTotal) / 2;
 
-        $this->processPayments($bookingId, $detailId, $dpStatus, $finalStatus, $downPaymentAmount, $bookingDate, $playDate);
+        // --- LOGIKA SINKRONISASI HARGA YANG BARU ---
+        $totalBookingPrice = $pricePerSlot + $attributeTotal; // Total Keseluruhan (misal: 200k + atribut)
+        $downPaymentAmount = $totalBookingPrice / 2;          // Nominal DP (50%)
+        $finalPaymentAmount = $totalBookingPrice - $downPaymentAmount; // Nominal Pelunasan (Sisa 50%)
+        // -------------------------------------------
+
+        $this->processPayments($bookingId, $detailId, $dpStatus, $finalStatus, $downPaymentAmount, $finalPaymentAmount, $bookingDate, $playDate);
         $this->handleSpecialStatuses($status, $detailId, $field->id, $managers->random()->id, $playDate, $bookingDate);
 
         DB::table('logs')->insert([
@@ -105,33 +117,35 @@ class BookingSeeder extends Seeder
         return $total;
     }
 
-    private function processPayments($bookingId, $detailId, $dpStatus, $finalStatus, $amount, $bookingDate, $playDate): void
+    // Perhatikan tambahan parameter $dpAmount dan $finalAmount di bawah ini
+    private function processPayments($bookingId, $detailId, $dpStatus, $finalStatus, $dpAmount, $finalAmount, $bookingDate, $playDate): void
     {
-        // Down Payment
+        // 1. Insert Down Payment (DP)
         $isPending = $dpStatus === 'pending';
         DB::table('payments')->insert([
             'fk_booking_id' => $bookingId,
             'fk_booking_detail_id' => $detailId,
             'reference_id' => 'INV-DP-' . strtoupper(Str::random(8)),
-            'payment_url' => $isPending ? 'https://midtrans.com/dummy/' . Str::random(10) : null,
+            'payment_url' => $isPending ? 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' . Str::random(10) : null,
             'payment_type' => 'down payment',
             'method' => 'transfer',
-            'amount' => $amount,
+            'amount' => $dpAmount, // Nominal sinkron 50%
             'status' => $dpStatus,
             'paid_at' => $isPending ? null : $bookingDate->copy()->addMinutes(15)->format('Y-m-d H:i:s'),
             'created_at' => $bookingDate->format('Y-m-d H:i:s'),
             'updated_at' => $bookingDate->format('Y-m-d H:i:s'),
         ]);
 
-        // Final Payment
+        // 2. Insert Final Payment (Pelunasan)
         if ($finalStatus === 'success') {
             DB::table('payments')->insert([
                 'fk_booking_id' => $bookingId,
                 'fk_booking_detail_id' => $detailId,
                 'reference_id' => 'INV-FN-' . strtoupper(Str::random(8)),
+                'payment_url' => null,
                 'payment_type' => 'final payment',
                 'method' => 'cash',
-                'amount' => $amount,
+                'amount' => $finalAmount, // Nominal sinkron 50%
                 'status' => 'success',
                 'paid_at' => $playDate->copy()->setTime(18, 30)->format('Y-m-d H:i:s'),
                 'created_at' => $playDate->copy()->setTime(18, 30)->format('Y-m-d H:i:s'),
