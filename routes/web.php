@@ -8,6 +8,8 @@ use App\Http\Controllers\Tenant\Auth\ProfileController;
 use App\Http\Controllers\Tenant\Booking\BookingController;
 use App\Http\Controllers\Tenant\Booking\DashboardController;
 use App\Http\Controllers\Tenant\Booking\ScheduleController;
+use App\Http\Controllers\Tenant\Booking\RescheduleDetailBookingController;
+use App\Http\Controllers\Tenant\Booking\CancelledDetailBookingController;
 use App\Http\Controllers\Tenant\Payment\PaymentController;
 use App\Http\Controllers\Tenant\Booking\HistoryController;
 use App\Http\Middleware\CheckTenantRole;
@@ -49,15 +51,14 @@ Route::middleware('auth')->group(function () {
             Route::post('/confirm-form', [BookingController::class, 'confirmForm'])->name('tenant.booking.confirm-form');
             Route::post('/store', [BookingController::class, 'store'])->name('tenant.booking.store');
             Route::get('/success/{booking_id}', [BookingController::class, 'success'])->name('tenant.booking.success');
+            // route reschedule detail booking
+            Route::get('/form-reschedule/{detail_booking_id}', [RescheduleDetailBookingController::class, 'formInput'])->name('tenant.booking.form.reschedule');
+            Route::post('/confirmation-reschedule', [RescheduleDetailBookingController::class, 'confirmation'])->name('tenant.booking.confirmation.reschedule');
+            Route::post('/process-reschedule', [RescheduleDetailBookingController::class, 'process'])->name('tenant.booking.process.reschedule');
+            // route cancelled detail booking
+            Route::get('/form-cancelled/{detail_booking_id}', [CancelledDetailBookingController::class, 'formInput'])->name('tenant.booking.form.cancelled');
+            Route::post('/confirmation-cancelled', [CancelledDetailBookingController::class, 'confirmation'])->name('tenant.booking.confirmation.cancelled');
+            Route::post('/process-cancelled', [CancelledDetailBookingController::class, 'process'])->name('tenant.booking.process.cancelled');
         });
-
-        Route::get('/payment', [PaymentController::class, 'index'])->name('payment.index');
-        Route::post('/payment', [PaymentController::class, 'store'])->name('payment.store');
-        Route::get('/payment/return', [PaymentController::class, 'tripayReturn'])->name('payment.return');
-        Route::get('/payment/dummy/checkout', [PaymentController::class, 'dummyCheckout'])->name('payment.dummy.checkout');
-        Route::post('/payment/dummy/simulate', [PaymentController::class, 'dummySimulate'])->name('payment.dummy.simulate');
-        Route::get('/test-status/{reference}', [PaymentController::class, 'testStatus'])->name('payment.test.status');
-        Route::get('/status', [PaymentController::class, 'status'])->name('status.index');
-        Route::get('/bukti', [PaymentController::class, 'bukti'])->name('bukti.index');
     });
 });
