@@ -30,7 +30,7 @@ class Field extends Model
 
     public function attributes(): HasMany
     {
-        return $this->hasMany(Attribute::class, 'fk_filed_id', 'id');
+        return $this->hasMany(Attribute::class, 'fk_field_id', 'id');
     }
 
     public function expenses(): HasMany

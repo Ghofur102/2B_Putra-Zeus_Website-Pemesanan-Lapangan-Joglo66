@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Attribute;
+use App\Models\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -13,7 +13,9 @@ class BookingAttribute extends Model
     protected $table = 'booking_attributes';
 
     protected $fillable = [
-        'fk_booking_id', 'fk_attribute_id', 'quantity', 'price', 'total', 'reason',
+        'fk_booking_id', 'fk_attribute_id', 'quantity', 'price', 'total',
+        'transaction_date', 'status', 'customer_name', 'customer_phone',
+        'duration_hours', 'reason',
     ];
 
     public function booking(): BelongsTo
