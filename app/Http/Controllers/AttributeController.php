@@ -10,27 +10,7 @@ use Illuminate\Support\Facades\Validator;
 
 class AttributeController extends Controller
 {
-    private function checkFieldAccess($user, $fieldId): bool
-    {
-        if ($user && $user->role === 'worker') {
-            return DB::table('field_admins')
-                ->where('fk_user_id', $user->id)
-                ->where('fk_field_id', $fieldId)
-                ->exists();
-        }
-        return true;
-    }
-
-    private function getAccessibleFieldIds($user): array
-    {
-        if ($user && $user->role === 'worker') {
-            return DB::table('field_admins')
-                ->where('fk_user_id', $user->id)
-                ->pluck('fk_field_id')
-                ->toArray();
-        }
-        return [];
-    }
+    use \App\Http\Controllers\Traits\FieldAccessTrait;
 
     public function index(Request $request): JsonResponse
     {
