@@ -5,6 +5,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FieldController;
 use App\Http\Controllers\BookingController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\AttributeRentalController;
 use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
 
@@ -39,6 +41,20 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
 
     // Payment
     Route::post('/payment-booking', [PaymentController::class, 'processPayment']); // Danil
+
+    // Attribute
+    Route::get('/list-attribute', [AttributeController::class, 'index']);
+    Route::get('/detail-attribute/{id}', [AttributeController::class, 'show']);
+    Route::post('/create-attribute', [AttributeController::class, 'store']);
+    Route::post('/update-attribute/{id}', [AttributeController::class, 'update']);
+    Route::post('/delete-attribute/{id}', [AttributeController::class, 'destroy']);
+    Route::post('/toggle-attribute-status/{id}', [AttributeController::class, 'toggleStatus']);
+
+    // Attribute Rental
+    Route::post('/rent-attribute', [AttributeRentalController::class, 'store']);
+    Route::post('/return-rent-attribute/{id}', [AttributeRentalController::class, 'returnItem']);
+    Route::get('/detail-rent-attribute/{id}', [AttributeRentalController::class, 'show']);
+    Route::get('/history-rent-attribute', [AttributeRentalController::class, 'history']);
 
     Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
