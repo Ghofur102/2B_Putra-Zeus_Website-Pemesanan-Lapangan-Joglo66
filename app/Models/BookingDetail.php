@@ -20,7 +20,7 @@ class BookingDetail extends Model
         'price',
         'status',
     ];
-   
+
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class, 'fk_booking_id', 'id');
@@ -33,11 +33,11 @@ class BookingDetail extends Model
 
     public function bookingReschedule(): HasMany
     {
-        return $this->hasMany(BookingReschedule::class, 'fk_booking_reschedule_id', 'id');
+        return $this->hasMany(BookingReschedule::class, 'fk_booking_detail_id', 'id');
     }
 
     public function bookingCancelled(): HasMany
     {
-        return $this->hasMany(BookingCancle::class, 'fk_booking_cancle_id', 'id');
+        return $this->hasMany(BookingCancle::class, 'fk_booking_detail_id', 'id');
     }
 }
