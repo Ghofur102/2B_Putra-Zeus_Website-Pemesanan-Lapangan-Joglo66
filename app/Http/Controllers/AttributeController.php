@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Attribute;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class AttributeController extends Controller
@@ -23,11 +22,7 @@ class AttributeController extends Controller
             if ($user && $user->role === 'worker') {
                 $fieldIds = $this->getAccessibleFieldIds($user);
                 if (empty($fieldIds)) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Data atribut berhasil diambil.',
-                        'data' => []
-                    ], 200);
+                    return $this->ok('Data atribut berhasil diambil.', []);
                 }
                 $query->whereIn('fk_field_id', $fieldIds);
             }
@@ -39,19 +34,9 @@ class AttributeController extends Controller
                 });
             }
 
-            $attributes = $query->latest()->get();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Data atribut berhasil diambil.',
-                'data' => $attributes
-            ], 200);
+            return $this->ok('Data atribut berhasil diambil.', $query->latest()->get());
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memuat data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal memuat data, silahkan coba lagi.');
         }
     }
 
@@ -61,33 +46,17 @@ class AttributeController extends Controller
             $attribute = Attribute::with('field:id,name')->find($id);
 
             if (!$attribute) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data atribut tidak ditemukan.',
-                    'data' => null
-                ], 404);
+                return $this->notFound('Data atribut tidak ditemukan.');
             }
 
             $user = $request->user();
             if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden. Anda tidak memiliki akses ke atribut ini.',
-                    'data' => null
-                ], 403);
+                return $this->forbidden('Anda tidak memiliki akses ke atribut ini.');
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Detail atribut berhasil diambil.',
-                'data' => $attribute
-            ], 200);
+            return $this->ok('Detail atribut berhasil diambil.', $attribute);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memuat data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal memuat data, silahkan coba lagi.');
         }
     }
 
@@ -99,36 +68,16 @@ class AttributeController extends Controller
             'type' => 'required|in:sepatu,rompi,lainnya',
             'stock' => 'required|integer|min:0',
             'price_hour' => 'required|integer|min:0',
-        ], [
-            'name.required' => 'Nama atribut wajib diisi.',
-            'type.required' => 'Jenis atribut wajib dipilih.',
-            'type.in' => 'Jenis atribut tidak valid.',
-            'stock.required' => 'Stok wajib diisi.',
-            'stock.integer' => 'Format input harus berupa angka.',
-            'stock.min' => 'Stok tidak boleh negatif.',
-            'price_hour.required' => 'Harga sewa wajib diisi.',
-            'price_hour.integer' => 'Format input harus berupa angka.',
-            'price_hour.min' => 'Harga sewa tidak boleh negatif.',
-            'fk_field_id.required' => 'Lapangan wajib dipilih.',
-            'fk_field_id.exists' => 'Lapangan tidak ditemukan.',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->validationError($validator);
         }
 
         try {
             $user = $request->user();
             if (!$this->checkFieldAccess($user, $request->fk_field_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden. Anda tidak memiliki akses ke lapangan ini.',
-                    'data' => null
-                ], 403);
+                return $this->forbidden('Anda tidak memiliki akses ke lapangan ini.');
             }
 
             $exists = Attribute::where('fk_field_id', $request->fk_field_id)
@@ -136,11 +85,7 @@ class AttributeController extends Controller
                 ->exists();
 
             if ($exists) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Nama atribut sudah digunakan.',
-                    'data' => null
-                ], 422);
+                return $this->fail('Nama atribut sudah digunakan.', 422);
             }
 
             $attribute = Attribute::create([
@@ -152,17 +97,9 @@ class AttributeController extends Controller
                 'status' => 'active',
             ]);
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Data atribut berhasil disimpan.',
-                'data' => $attribute
-            ], 201);
+            return $this->ok('Data atribut berhasil disimpan.', $attribute, 201);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menyimpan data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal menyimpan data, silahkan coba lagi.');
         }
     }
 
@@ -177,31 +114,19 @@ class AttributeController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->validationError($validator);
         }
 
         try {
             $attribute = Attribute::find($id);
 
             if (!$attribute) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data atribut tidak ditemukan.',
-                    'data' => null
-                ], 404);
+                return $this->notFound('Data atribut tidak ditemukan.');
             }
 
             $user = $request->user();
             if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden. Anda tidak memiliki akses ke atribut ini.',
-                    'data' => null
-                ], 403);
+                return $this->forbidden('Anda tidak memiliki akses ke atribut ini.');
             }
 
             if ($request->filled('name') && $request->name !== $attribute->name) {
@@ -211,11 +136,7 @@ class AttributeController extends Controller
                     ->exists();
 
                 if ($exists) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Nama atribut sudah digunakan.',
-                        'data' => null
-                    ], 422);
+                    return $this->fail('Nama atribut sudah digunakan.', 422);
                 }
             }
 
@@ -223,17 +144,9 @@ class AttributeController extends Controller
                 'name', 'type', 'stock', 'price_hour', 'status'
             ]));
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Data atribut berhasil diperbarui.',
-                'data' => $attribute->fresh()
-            ], 200);
+            return $this->ok('Data atribut berhasil diperbarui.', $attribute->fresh());
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menyimpan data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal menyimpan data, silahkan coba lagi.');
         }
     }
 
@@ -243,35 +156,19 @@ class AttributeController extends Controller
             $attribute = Attribute::find($id);
 
             if (!$attribute) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data atribut tidak ditemukan.',
-                    'data' => null
-                ], 404);
+                return $this->notFound('Data atribut tidak ditemukan.');
             }
 
             $user = $request->user();
             if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden. Anda tidak memiliki akses ke atribut ini.',
-                    'data' => null
-                ], 403);
+                return $this->forbidden('Anda tidak memiliki akses ke atribut ini.');
             }
 
             $attribute->delete();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Data atribut berhasil dihapus.',
-                'data' => null
-            ], 200);
+            return $this->ok('Data atribut berhasil dihapus.');
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menghapus data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal menghapus data, silahkan coba lagi.');
         }
     }
 
@@ -281,38 +178,23 @@ class AttributeController extends Controller
             $attribute = Attribute::find($id);
 
             if (!$attribute) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data atribut tidak ditemukan.',
-                    'data' => null
-                ], 404);
+                return $this->notFound('Data atribut tidak ditemukan.');
             }
 
             $user = $request->user();
             if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden. Anda tidak memiliki akses ke atribut ini.',
-                    'data' => null
-                ], 403);
+                return $this->forbidden('Anda tidak memiliki akses ke atribut ini.');
             }
 
             $newStatus = $attribute->status === 'active' ? 'inactive' : 'active';
             $attribute->update(['status' => $newStatus]);
 
-            return response()->json([
-                'success' => true,
-                'message' => $newStatus === 'active'
-                    ? 'Atribut berhasil diaktifkan.'
-                    : 'Atribut berhasil dinonaktifkan.',
-                'data' => $attribute->fresh()
-            ], 200);
+            return $this->ok(
+                $newStatus === 'active' ? 'Atribut berhasil diaktifkan.' : 'Atribut berhasil dinonaktifkan.',
+                $attribute->fresh()
+            );
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal mengubah status, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal mengubah status, silahkan coba lagi.');
         }
     }
 }

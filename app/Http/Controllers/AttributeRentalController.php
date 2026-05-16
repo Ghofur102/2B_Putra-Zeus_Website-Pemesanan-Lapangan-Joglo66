@@ -23,22 +23,10 @@ class AttributeRentalController extends Controller
             'customer_phone' => 'nullable|string|max:20',
             'duration_hours' => 'required|integer|min:1',
             'transaction_date' => 'required|date',
-        ], [
-            'items.required' => 'Pilih minimal satu atribut.',
-            'items.*.quantity.required' => 'Jumlah atribut wajib diisi.',
-            'items.*.quantity.integer' => 'Jumlah atribut harus berupa angka.',
-            'items.*.quantity.min' => 'Jumlah atribut minimal 1.',
-            'customer_name.required' => 'Nama penyewa wajib diisi.',
-            'duration_hours.required' => 'Durasi sewa wajib diisi.',
-            'transaction_date.required' => 'Tanggal transaksi wajib diisi.',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => $validator->errors()->first(),
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->validationError($validator);
         }
 
         try {
@@ -47,32 +35,19 @@ class AttributeRentalController extends Controller
             foreach ($request->items as $item) {
                 $attribute = Attribute::find($item['fk_attribute_id']);
                 if (!$attribute) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Atribut tidak ditemukan.',
-                        'data' => null
-                    ], 404);
+                    return $this->notFound('Atribut tidak ditemukan.');
                 }
                 if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Forbidden. Anda tidak memiliki akses ke atribut ini.',
-                        'data' => null
-                    ], 403);
+                    return $this->forbidden('Anda tidak memiliki akses ke atribut ini.');
                 }
                 if ($attribute->status === 'inactive') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Atribut {$attribute->name} sedang tidak tersedia.",
-                        'data' => null
-                    ], 422);
+                    return $this->fail("Atribut {$attribute->name} sedang tidak tersedia.", 422);
                 }
                 if ($attribute->stock < $item['quantity']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Stok tidak mencukupi. Sisa stok {$attribute->name}: {$attribute->stock}",
-                        'data' => null
-                    ], 422);
+                    return $this->fail(
+                        "Stok tidak mencukupi. Sisa stok {$attribute->name}: {$attribute->stock}",
+                        422
+                    );
                 }
             }
 
@@ -106,22 +81,14 @@ class AttributeRentalController extends Controller
                 return $created;
             });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Transaksi penyewaan berhasil disimpan.',
-                'data' => [
-                    'items' => $rentals,
-                    'total_price' => collect($rentals)->sum('total'),
-                    'customer_name' => $request->customer_name,
-                    'transaction_date' => $request->transaction_date,
-                ]
+            return $this->ok('Transaksi penyewaan berhasil disimpan.', [
+                'items' => $rentals,
+                'total_price' => collect($rentals)->sum('total'),
+                'customer_name' => $request->customer_name,
+                'transaction_date' => $request->transaction_date,
             ], 201);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sistem sedang sibuk. Silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Sistem sedang sibuk. Silahkan coba lagi.');
         }
     }
 
@@ -131,29 +98,17 @@ class AttributeRentalController extends Controller
             $rental = BookingAttribute::find($id);
 
             if (!$rental) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data penyewaan tidak ditemukan.',
-                    'data' => null
-                ], 404);
+                return $this->notFound('Data penyewaan tidak ditemukan.');
             }
 
             if ($rental->status === 'dikembalikan') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Atribut ini sudah dikembalikan.',
-                    'data' => null
-                ], 422);
+                return $this->fail('Atribut ini sudah dikembalikan.', 422);
             }
 
             $user = $request->user();
             $attribute = Attribute::find($rental->fk_attribute_id);
             if ($attribute && !$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Forbidden. Anda tidak memiliki akses ke atribut ini.',
-                    'data' => null
-                ], 403);
+                return $this->forbidden('Anda tidak memiliki akses ke atribut ini.');
             }
 
             DB::transaction(function () use ($rental, $attribute) {
@@ -164,17 +119,9 @@ class AttributeRentalController extends Controller
                 }
             });
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Atribut berhasil dikembalikan.',
-                'data' => $rental->fresh()->load('attribute:id,name,type')
-            ], 200);
+            return $this->ok('Atribut berhasil dikembalikan.', $rental->fresh()->load('attribute:id,name,type'));
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memproses pengembalian, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal memproses pengembalian, silahkan coba lagi.');
         }
     }
 
@@ -192,11 +139,7 @@ class AttributeRentalController extends Controller
             if ($user && $user->role === 'worker') {
                 $fieldIds = $this->getAccessibleFieldIds($user);
                 if (empty($fieldIds)) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Data riwayat berhasil diambil.',
-                        'data' => []
-                    ], 200);
+                    return $this->ok('Data riwayat berhasil diambil.', []);
                 }
                 $query->whereHas('attribute', function ($q) use ($fieldIds) {
                     $q->whereIn('fk_field_id', $fieldIds);
@@ -219,19 +162,9 @@ class AttributeRentalController extends Controller
                 $query->where('status', $status);
             }
 
-            $rentals = $query->latest()->paginate($request->limit ?? 20);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Data riwayat penyewaan berhasil diambil.',
-                'data' => $rentals
-            ], 200);
+            return $this->ok('Data riwayat penyewaan berhasil diambil.', $query->latest()->paginate($request->limit ?? 20));
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memuat data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal memuat data, silahkan coba lagi.');
         }
     }
 
@@ -241,24 +174,12 @@ class AttributeRentalController extends Controller
             $rental = BookingAttribute::with('attribute:id,name,type,price_hour,stock,fk_field_id')->find($id);
 
             if (!$rental) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data penyewaan tidak ditemukan.',
-                    'data' => null
-                ], 404);
+                return $this->notFound('Data penyewaan tidak ditemukan.');
             }
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Detail penyewaan berhasil diambil.',
-                'data' => $rental
-            ], 200);
+            return $this->ok('Detail penyewaan berhasil diambil.', $rental);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal memuat data, silahkan coba lagi.',
-                'data' => null
-            ], 500);
+            return $this->fail('Gagal memuat data, silahkan coba lagi.');
         }
     }
 }
