@@ -162,6 +162,33 @@
                 </div>
             @endif
 
+            @if (in_array($detail->status, ['active', 'waiting', 'reschedule']))
+                <div class="flex flex-col sm:flex-row gap-3 mt-6 md:mt-8">
+                    @if ($canReschedule && !$alreadyRescheduled)
+                        <a href="{{ route('booking.reschedule.form', $detail->id) }}"
+                           class="text-center bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl transition-all text-sm">
+                            Ubah Jadwal (Reschedule)
+                        </a>
+                    @endif
+                    @if ($canCancel)
+                        <a href="{{ route('booking.cancel.form', $detail->id) }}"
+                           class="text-center bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-all text-sm">
+                            Batalkan Booking
+                        </a>
+                    @endif
+                </div>
+            @endif
+            @if ($detail->status === 'reschedule')
+                <div class="mt-4 p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm">
+                    Booking ini sudah direschedule. Tidak dapat mengubah jadwal lagi.
+                </div>
+            @endif
+            @if (!$canReschedule && $detail->status !== 'reschedule' && $detail->status !== 'cancelled')
+                <div class="mt-4 p-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg text-sm">
+                    Reschedule dan pembatalan hanya bisa dilakukan minimal H-3 sebelum jadwal bermain.
+                </div>
+            @endif
+
         </div>
     </div>
 </div>
