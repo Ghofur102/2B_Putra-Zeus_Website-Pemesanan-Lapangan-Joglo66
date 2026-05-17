@@ -17,7 +17,7 @@
 
             <div class="flex-1 w-full">
                 <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Pencarian Transaksi</label>
-                <div class="flex items-center w-full h-[46px] bg-gray-50 border border-gray-200 rounded-xl focus-within:bg-white focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all px-4 overflow-hidden">
+                <div class="flex items-center w-full h-11.5 bg-gray-50 border border-gray-200 rounded-xl focus-within:bg-white focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all px-4 overflow-hidden">
                     <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input type="text" id="filterSearch" placeholder="Ketik Nama Tim atau No. Referensi Duitku..."
                         class="w-full h-full bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none ml-3">
@@ -25,12 +25,12 @@
             </div>
 
             <div class="w-full md:w-auto relative">
-                <button type="button" id="toggleFilterBtn" class="w-full md:w-auto flex justify-center items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-medium px-6 h-[46px] rounded-xl transition-all text-sm shadow-sm">
+                <button type="button" id="toggleFilterBtn" class="w-full md:w-auto flex justify-center items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-medium px-6 h-11.5 rounded-xl transition-all text-sm shadow-sm">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
                     Filter Lanjutan
                 </button>
 
-                <div id="filterPopup" class="hidden absolute right-0 top-[calc(100%+8px)] w-[300px] sm:w-[340px] bg-white rounded-2xl shadow-xl border border-gray-100 p-6 z-30">
+                <div id="filterPopup" class="hidden absolute right-0 top-[calc(100%+8px)] w-75 sm:w-85 bg-white rounded-2xl shadow-xl border border-gray-100 p-6 z-30">
                     <div class="flex justify-between items-center border-b border-gray-100 pb-3 mb-4">
                         <h3 class="font-bold text-gray-800">Saring Berdasarkan</h3>
                         <button type="button" id="closeFilterBtn" class="text-gray-400 hover:text-gray-600">
@@ -41,17 +41,17 @@
                     <div class="flex flex-col gap-4">
                         <div class="w-full">
                             <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Mulai Tanggal</label>
-                            <input type="date" id="filterStartDate" class="w-full h-[46px] px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
+                            <input type="date" id="filterStartDate" class="w-full h-11.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
                         </div>
 
                         <div class="w-full">
                             <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Sampai Tanggal</label>
-                            <input type="date" id="filterEndDate" class="w-full h-[46px] px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
+                            <input type="date" id="filterEndDate" class="w-full h-11.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
                         </div>
 
                         <div class="w-full">
                             <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Status Pembayaran</label>
-                            <select id="filterStatus" class="w-full h-[46px] px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
+                            <select id="filterStatus" class="w-full h-11.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
                                 <option value="">Semua Status</option>
                                 @foreach ($availableStatuses as $status)
                                     <option value="{{ strtolower($status) }}">{{ ucfirst($status) }}</option>
@@ -60,7 +60,7 @@
                         </div>
 
                         <div class="w-full mt-2 pt-4 border-t border-gray-100">
-                            <button type="button" id="btnReset" class="w-full h-[46px] bg-red-50 hover:bg-red-100 text-red-600 font-medium px-6 rounded-xl transition-all text-sm border border-red-100">
+                            <button type="button" id="btnReset" class="w-full h-11.5 bg-red-50 hover:bg-red-100 text-red-600 font-medium px-6 rounded-xl transition-all text-sm border border-red-100">
                                 Reset Filter
                             </button>
                         </div>
@@ -93,7 +93,7 @@
             <div class="transaction-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-all"
                 data-search="{{ $rawSearchData }}" data-date="{{ $rawDate }}" data-status="{{ $status }}">
 
-                <div class="flex-1 min-w-[200px]">
+                <div class="flex-1 min-w-50">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="font-bold text-gray-800 text-base md:text-lg line-clamp-1">{{ $trx->team_name }}</h3>
                         <span class="px-2.5 py-0.5 rounded-md text-[10px] font-bold {{ $badgeClass }} uppercase tracking-wider shrink-0">
@@ -130,7 +130,7 @@
         @empty
             <div id="defaultEmptyState" class="w-full bg-white rounded-2xl border border-gray-200 py-16 text-center">
                 <svg class="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                <p class="text-gray-500 font-medium">Tidak ada transaksi yang ditemukan di database.</p>
+                <p class="text-gray-500 font-medium">Belum ada transaksi.</p>
             </div>
         @endforelse
 

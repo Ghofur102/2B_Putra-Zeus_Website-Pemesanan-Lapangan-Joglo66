@@ -1,4 +1,4 @@
-@extends('email.layouts.main')
+@extends('emails.layouts.main')
 @section('title', 'Reset Password - Joglo66')
 
 @section('content')

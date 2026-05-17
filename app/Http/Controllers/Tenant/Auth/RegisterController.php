@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Mail\VerifyEmailMail;
 
 class RegisterController extends Controller
@@ -40,6 +41,8 @@ class RegisterController extends Controller
         ]);
 
         try {
+            DB::connection('mysql_joglo66_app')->beginTransaction();
+
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
@@ -61,12 +64,17 @@ class RegisterController extends Controller
 
             Mail::to($user->email)->send(new VerifyEmailMail($user, $token));
 
+            DB::connection('mysql_joglo66_app')->commit();
+
             Auth::login($user);
 
             return redirect()->route('verification.notice')
                              ->with('info', 'Registrasi berhasil! Silakan cek email Anda untuk verifikasi.');
+
         } catch (\Exception $e) {
-            return back()->withInput()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            DB::connection('mysql_joglo66_app')->rollBack();
+
+            return back()->withInput()->with('error', 'Terjadi kesalahan saat mendaftar: Pastikan layanan email terhubung dengan baik. (' . $e->getMessage() . ')');
         }
     }
 }
