@@ -17,17 +17,7 @@ use Illuminate\Support\Facades\Storage;
 
 class FieldController extends Controller
 {
-    // Helper method untuk memvalidasi hak akses worker ke suatu lapangan
-    private function checkFieldAccess($user, $fieldId): bool
-    {
-        if ($user && $user->role === 'worker') {
-            return DB::table('field_admins')
-                ->where('fk_user_id', $user->id)
-                ->where('fk_field_id', $fieldId)
-                ->exists();
-        }
-        return true;
-    }
+    use \App\Http\Controllers\Traits\FieldAccessTrait;
 
     // GET: /api/admin/list-field (Zami)
     public function index(Request $request): JsonResponse

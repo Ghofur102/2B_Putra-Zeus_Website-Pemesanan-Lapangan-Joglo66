@@ -21,8 +21,9 @@ class CheckFieldAdmin
             ], 401);
         }
 
+        // Non-worker (admin, owner, dll) — akses penuh tanpa pengecekan field
         if ($user->role !== 'worker') {
-            return response()->json(['message' => 'Akses ditolak. Anda bukan admin.'], 403);
+            return $next($request);
         }
 
         // 1. Cari field_id dari parameter langsung atau request body

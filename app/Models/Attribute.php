@@ -12,7 +12,7 @@ class Attribute extends Model
     protected $table = 'attributes';
 
     protected $fillable = [
-        'fk_field_id', 'name', 'stock', 'price_hour',
+        'fk_field_id', 'name', 'type', 'stock', 'price_hour', 'status',
     ];
 
     public function field(): BelongsTo
