@@ -12,9 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*'); // ← tambahkan baris ini
         $middleware->alias([
             'check.field.admin' => \App\Http\Middleware\CheckFieldAdmin::class,
         ]);
+        $middleware->redirectUsersTo(fn () => route('tenant.booking.dashboard'));
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

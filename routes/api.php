@@ -1,14 +1,16 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\FieldController;
-use App\Http\Controllers\BookingController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\AttributeController;
-use App\Http\Controllers\AttributeRentalController;
-use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\FieldController;
+use App\Http\Controllers\Admin\BookingController;
+use App\Http\Controllers\Admin\PaymentController;
+use App\Http\Controllers\Admin\AuthController;
+use App\Http\Controllers\Tenant\Payment\DuitkuController;
 use Illuminate\Http\Request;
+
+// Payment Gateway
+Route::post('/duitku/callback', [DuitkuController::class, 'callback']);
 
 // Public test endpoint (no authentication required)
 Route::get('/hello', function () {
@@ -23,6 +25,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
 
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'dashboard']); // Zami
+    Route::get('/profile', [AuthController::class, 'profile']);
 
     // Field
     Route::get('/list-field', [FieldController::class, 'index']); // Zami
@@ -57,6 +60,9 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
     Route::get('/history-rent-attribute', [AttributeRentalController::class, 'history']);
 
     Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+        return $request->user();
+    });
 });
-});
+
+Route::post('/tripay/callback', [\App\Http\Controllers\Tenant\Payment\PaymentController::class, 'tripayCallback']);
+

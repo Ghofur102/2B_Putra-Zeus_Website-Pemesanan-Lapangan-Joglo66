@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class BookingCancle extends Model
+class BookingCancelled extends Model
 {
     protected $connection = 'mysql_joglo66_app';
 
