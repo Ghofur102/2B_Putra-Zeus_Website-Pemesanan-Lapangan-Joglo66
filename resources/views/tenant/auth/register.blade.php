@@ -1,554 +1,102 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daftar Akun - Joglo66</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+@extends('tenant.layouts.guest')
+@section('title', 'Daftar Akun')
 
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #ECECEC;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
+@section('content')
+<div class="w-full max-w-5xl bg-white rounded-4xl md:rounded-[3rem] shadow-xl shadow-gray-200/50 border border-gray-100 flex flex-col md:flex-row overflow-hidden min-h-137.5">
 
-        /* ==================== NAVBAR ==================== */
-        .navbar {
-            background: transparent;
-            padding: 20px 60px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        }
-
-        .navbar-logo {
-            width: 55px;
-            height: 55px;
-            background: linear-gradient(135deg, #4A69A1 0%, #4C74C9 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: white;
-            font-size: 20px;
-            box-shadow: 0 4px 12px rgba(74, 105, 161, 0.15);
-        }
-
-        .navbar-menu {
-            display: flex;
-            gap: 40px;
-            align-items: center;
-        }
-
-        .navbar-menu a {
-            color: #333;
-            font-weight: 600;
-            font-size: 14px;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-
-        .navbar-menu a:hover {
-            color: #4A69A1;
-        }
-
-        .navbar-btn {
-            background: #4A69A1;
-            color: white;
-            border: none;
-            padding: 10px 28px;
-            border-radius: 25px;
-            font-weight: 600;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background 0.3s;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .navbar-btn:hover {
-            background: #3d5585;
-        }
-
-        /* ==================== MAIN CONTENT ==================== */
-        .main-content {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 40px 20px;
-        }
-
-        /* ==================== REGISTER CONTAINER ==================== */
-        .register-container {
-            background: white;
-            border: 1px solid #E0E0E0;
-            border-radius: 45px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-            width: 100%;
-            max-width: 1000px;
-            display: flex;
-            min-height: 550px;
-            overflow: hidden;
-        }
-
-        /* ==================== WELCOME SECTION (LEFT) ==================== */
-        .welcome-section {
-            flex: 1;
-            background: linear-gradient(135deg, #4A69A1 0%, #4C74C9 100%);
-            padding: 60px 50px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            color: white;
-            border-radius: 45px 0 0 45px;
-        }
-
-        .welcome-title {
-            font-size: 18px;
-            font-weight: 500;
-            margin-bottom: 25px;
-            letter-spacing: 0.5px;
-            opacity: 0.95;
-        }
-
-        .welcome-logo {
-            width: 240px;
-            height: 240px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 25px;
-            font-size: 80px;
-            font-weight: 700;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        }
-
-        .welcome-description {
-            font-size: 15px;
-            line-height: 1.6;
-            max-width: 280px;
-            opacity: 0.9;
-            font-weight: 400;
-        }
-
-        /* ==================== FORM SECTION (RIGHT) ==================== */
-        .form-section {
-            flex: 1;
-            padding: 60px 50px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .form-title {
-            font-size: 32px;
-            font-weight: 700;
-            color: #1a1a1a;
-            margin-bottom: 35px;
-            text-align: center;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-            font-size: 13px;
-            letter-spacing: 0.3px;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 14px 16px;
-            border: 1px solid #D8D8D8;
-            border-radius: 12px;
-            font-size: 14px;
-            background: #FAFAFA;
-            font-family: 'Poppins', sans-serif;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #4A69A1;
-            background: white;
-            box-shadow: 0 4px 16px rgba(74, 105, 161, 0.12);
-        }
-
-        .form-group input::placeholder {
-            color: #AAA;
-        }
-
-        .form-group.error input {
-            border-color: #dc3545;
-            background: #fff8f8;
-        }
-
-        .error-message {
-            color: #dc3545;
-            font-size: 12px;
-            margin-top: 6px;
-            font-weight: 500;
-        }
-
-        /* ==================== BUTTON ==================== */
-        .submit-btn {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #4A69A1 0%, #4C74C9 100%);
-            color: white;
-            border: none;
-            border-radius: 25px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 25px;
-            box-shadow: 0 4px 16px rgba(74, 105, 161, 0.2);
-            font-family: 'Poppins', sans-serif;
-        }
-
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(74, 105, 161, 0.3);
-        }
-
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-
-        /* ==================== DIVIDER & LINK ==================== */
-        .divider {
-            display: flex;
-            align-items: center;
-            margin: 25px 0;
-            gap: 12px;
-        }
-
-        .divider::before,
-        .divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: #D8D8D8;
-        }
-
-        .divider-text {
-            color: #999;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .google-btn {
-            width: 100%;
-            padding: 12px;
-            background: #F5F5F5;
-            border: 1px solid #D8D8D8;
-            border-radius: 25px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            color: #333;
-            font-family: 'Poppins', sans-serif;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-
-        .google-btn:hover {
-            background: #ECECEC;
-            border-color: #BBB;
-        }
-
-        .login-link {
-            text-align: center;
-            margin-top: 25px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .login-link a {
-            color: #4A69A1;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.3s;
-        }
-
-        .login-link a:hover {
-            color: #3d5585;
-        }
-
-        /* ==================== ALERTS ==================== */
-        .alert {
-            padding: 14px 16px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .alert-danger {
-            background-color: #fee;
-            border: 1px solid #fcc;
-            color: #c33;
-        }
-
-        /* ==================== RESPONSIVE ==================== */
-        @media (max-width: 768px) {
-            .navbar {
-                padding: 15px 30px;
-            }
-
-            .navbar-menu {
-                gap: 20px;
-            }
-
-            .navbar-menu a {
-                font-size: 12px;
-            }
-
-            .navbar-btn {
-                padding: 8px 20px;
-                font-size: 12px;
-            }
-
-            .main-content {
-                padding: 30px 15px;
-            }
-
-            .register-container {
-                flex-direction: column;
-                min-height: auto;
-            }
-
-            .welcome-section {
-                border-radius: 45px 45px 0 0;
-                padding: 40px 30px;
-                min-height: 250px;
-            }
-
-            .welcome-logo {
-                width: 140px;
-                height: 140px;
-                font-size: 50px;
-                margin-bottom: 15px;
-            }
-
-            .welcome-title {
-                font-size: 14px;
-                margin-bottom: 15px;
-            }
-
-            .welcome-description {
-                font-size: 13px;
-                max-width: 100%;
-            }
-
-            .form-section {
-                border-radius: 0 0 45px 45px;
-                padding: 40px 30px;
-            }
-
-            .form-title {
-                font-size: 24px;
-                margin-bottom: 25px;
-            }
-
-            .form-group {
-                margin-bottom: 15px;
-            }
-
-            .form-group input {
-                padding: 12px 14px;
-                font-size: 13px;
-            }
-
-            .submit-btn {
-                padding: 12px;
-                font-size: 14px;
-                margin-top: 15px;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .navbar {
-                padding: 12px 15px;
-            }
-
-            .navbar-logo {
-                width: 45px;
-                height: 45px;
-                font-size: 16px;
-            }
-
-            .navbar-menu {
-                gap: 10px;
-            }
-
-            .navbar-menu a {
-                font-size: 11px;
-            }
-
-            .register-container {
-                border-radius: 25px;
-            }
-
-            .welcome-section,
-            .form-section {
-                border-radius: 0;
-                padding: 30px 20px;
-            }
-
-            .welcome-section {
-                border-radius: 25px 25px 0 0;
-            }
-
-            .form-section {
-                border-radius: 0 0 25px 25px;
-            }
-
-            .form-title {
-                font-size: 20px;
-                margin-bottom: 20px;
-            }
-
-            .welcome-logo {
-                width: 120px;
-                height: 120px;
-                font-size: 40px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- NAVBAR -->
-    <div class="navbar">
-        <div class="navbar-logo">J</div>
-        <div class="navbar-menu">
-            <a href="#kontak">Kontak Kami</a>
-            <a href="{{ route('login') }}">Masuk</a>
-            <a href="{{ route('register') }}" class="navbar-btn">Daftar</a>
+    <div class="md:w-5/12 bg-linear-to-br from-blue-500 to-primary p-10 md:p-16 flex flex-col justify-center items-center text-center text-white relative overflow-hidden md:flex">
+        <div class="absolute inset-0 bg-black/5"></div>
+        <div class="relative z-10 flex flex-col items-center">
+            <h2 class="text-lg md:text-xl font-medium mb-6 tracking-wide opacity-95">Selamat Datang Di</h2>
+            <div class="w-32 h-32 md:w-40 md:h-40 bg-white/10 rounded-full border border-white/20 shadow-xl flex items-center justify-center text-5xl md:text-6xl mb-8 backdrop-blur-sm">
+                ⚽
+            </div>
+            <p class="text-sm md:text-base leading-relaxed opacity-90 max-w-65">
+                Platform booking lapangan olahraga terpercaya dengan layanan terbaik untuk Anda
+            </p>
         </div>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-        <div class="register-container">
-            <!-- WELCOME SECTION -->
-            <div class="welcome-section">
-                <div class="welcome-title">Selamat Datang Di</div>
-                <div class="welcome-logo">⚽</div>
-                <div class="welcome-description">
-                    Platform booking lapangan olahraga terpercaya dengan layanan terbaik untuk Anda
+    <div class="w-full md:w-7/12 p-8 md:p-12 lg:p-16 flex flex-col justify-center">
+
+        <div class="md:hidden flex flex-col items-center mb-8">
+            <div class="w-20 h-20 bg-linear-to-br from-blue-500 to-primary rounded-full shadow-lg flex items-center justify-center text-3xl mb-4">⚽</div>
+            <h1 class="text-2xl font-bold text-gray-900">Daftar Akun</h1>
+        </div>
+
+        <h1 class="hidden md:block text-3xl md:text-4xl font-bold text-gray-900 mb-8">Daftar</h1>
+
+        @if ($errors->any())
+            <div class="bg-red-50 border border-red-200 text-red-600 px-5 py-4 rounded-xl mb-6 text-sm">
+                <span class="font-bold">Registrasi Gagal!</span>
+                <ul class="mt-2 ml-5 list-disc marker:text-red-400 space-y-1">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <form action="{{ route('register') }}" method="POST" class="flex flex-col gap-4 md:gap-5">
+            @csrf
+
+            <div>
+                <label for="name" class="block text-gray-700 text-xs md:text-sm font-medium mb-2">Nama Lengkap</label>
+                <input type="text" id="name" name="name" value="{{ old('name') }}" placeholder="Masukkan nama lengkap Anda" required
+                    class="w-full px-5 py-3 md:py-3.5 bg-gray-50 border {{ $errors->has('name') ? 'border-red-400 bg-red-50' : 'border-gray-200' }} rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
+                @error('name') <span class="text-red-500 text-xs font-medium mt-1.5 block">{{ $message }}</span> @enderror
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                <div>
+                    <label for="email" class="block text-gray-700 text-xs md:text-sm font-medium mb-2">Email</label>
+                    <input type="email" id="email" name="email" value="{{ old('email') }}" placeholder="Masukkan email" required
+                        class="w-full px-5 py-3 md:py-3.5 bg-gray-50 border {{ $errors->has('email') ? 'border-red-400 bg-red-50' : 'border-gray-200' }} rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
+                    @error('email') <span class="text-red-500 text-xs font-medium mt-1.5 block">{{ $message }}</span> @enderror
+                </div>
+
+                <div>
+                    <label for="phone" class="block text-gray-700 text-xs md:text-sm font-medium mb-2">Nomor HP</label>
+                    <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" placeholder="08123456789" required
+                        class="w-full px-5 py-3 md:py-3.5 bg-gray-50 border {{ $errors->has('phone') ? 'border-red-400 bg-red-50' : 'border-gray-200' }} rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
+                    @error('phone') <span class="text-red-500 text-xs font-medium mt-1.5 block">{{ $message }}</span> @enderror
                 </div>
             </div>
 
-            <!-- FORM SECTION -->
-            <div class="form-section">
-                <div class="form-title">Daftar</div>
-
-                @if ($errors->any())
-                    <div class="alert alert-danger">
-                        <strong>Registrasi Gagal!</strong><br>
-                        @foreach ($errors->all() as $error)
-                            • {{ $error }}<br>
-                        @endforeach
-                    </div>
-                @endif
-
-                <form action="{{ route('register') }}" method="POST">
-                    @csrf
-
-                    <div class="form-group @error('name') error @enderror">
-                        <label for="name">Nama Lengkap</label>
-                        <input type="text" id="name" name="name" value="{{ old('name') }}" placeholder="Masukkan nama lengkap Anda" required>
-                        @error('name')
-                            <div class="error-message">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="form-group @error('email') error @enderror">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" value="{{ old('email') }}" placeholder="Masukkan email Anda" required>
-                        @error('email')
-                            <div class="error-message">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="form-group @error('phone') error @enderror">
-                        <label for="phone">Nomor HP</label>
-                        <input type="tel" id="phone" name="phone" value="{{ old('phone') }}" placeholder="Contoh: 08123456789" required>
-                        @error('phone')
-                            <div class="error-message">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="form-group @error('password') error @enderror">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" placeholder="Minimal 8 karakter" required>
-                        @error('password')
-                            <div class="error-message">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <div class="form-group @error('password_confirmation') error @enderror">
-                        <label for="password_confirmation">Konfirmasi Password</label>
-                        <input type="password" id="password_confirmation" name="password_confirmation" placeholder="Ketik ulang password" required>
-                        @error('password_confirmation')
-                            <div class="error-message">{{ $message }}</div>
-                        @enderror
-                    </div>
-
-                    <button type="submit" class="submit-btn">Daftar Sekarang</button>
-                </form>
-
-                <div class="divider">
-                    <span class="divider-text">Atau</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                <div>
+                    <label for="password" class="block text-gray-700 text-xs md:text-sm font-medium mb-2">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Min. 8 karakter" required
+                        class="w-full px-5 py-3 md:py-3.5 bg-gray-50 border {{ $errors->has('password') ? 'border-red-400 bg-red-50' : 'border-gray-200' }} rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
+                    @error('password') <span class="text-red-500 text-xs font-medium mt-1.5 block">{{ $message }}</span> @enderror
                 </div>
 
-                <button class="google-btn">
-                    <span>🔵</span>
-                    Daftar dengan Google
-                </button>
-
-                <div class="login-link">
-                    Sudah punya akun? <a href="{{ route('login') }}">Masuk di sini</a>
+                <div>
+                    <label for="password_confirmation" class="block text-gray-700 text-xs md:text-sm font-medium mb-2">Konfirmasi Password</label>
+                    <input type="password" id="password_confirmation" name="password_confirmation" placeholder="Ketik ulang password" required
+                        class="w-full px-5 py-3 md:py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
                 </div>
             </div>
+
+            <button type="submit" class="w-full bg-primary hover:bg-blue-800 text-white font-semibold py-3.5 md:py-4 rounded-xl shadow-lg shadow-primary/30 transition-all mt-4 text-sm md:text-base tracking-wide">
+                Daftar Sekarang
+            </button>
+        </form>
+
+        <div class="flex items-center gap-4 my-6 md:my-8">
+            <div class="flex-1 h-px bg-gray-200"></div>
+            <span class="text-[11px] md:text-xs font-medium text-gray-400 uppercase tracking-wider">Atau</span>
+            <div class="flex-1 h-px bg-gray-200"></div>
+        </div>
+
+        <button type="button" class="w-full flex justify-center items-center gap-3 bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 md:py-3.5 px-6 border border-gray-200 rounded-xl transition-all text-sm shadow-sm mb-6">
+            <svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/><path d="M1 1h22v22H1z" fill="none"/></svg>
+            Daftar dengan Google
+        </button>
+
+        <div class="text-center text-sm md:text-base text-gray-600">
+            Sudah punya akun? <a href="{{ route('login') }}" class="text-primary font-bold hover:text-blue-800 transition-colors ml-1">Masuk di sini</a>
         </div>
     </div>
-</body>
-</html>
+</div>
+@endsection

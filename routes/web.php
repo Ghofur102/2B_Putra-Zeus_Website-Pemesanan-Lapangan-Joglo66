@@ -18,7 +18,6 @@ Route::get('/', function () {
     return redirect()->route('tenant.booking.dashboard');
 });
 
-Route::post('/payment/callback', [PaymentController::class, 'tripayCallback'])->name('payment.callback');
 Route::get('/verify-email/{token}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
 
 Route::middleware('guest')->group(function () {

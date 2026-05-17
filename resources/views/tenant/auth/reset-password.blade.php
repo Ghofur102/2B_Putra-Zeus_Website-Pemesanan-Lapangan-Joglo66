@@ -1,171 +1,68 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reset Password - Joglo66</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        .container {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            width: 100%;
-            max-width: 450px;
-            padding: 40px;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .header h1 {
-            color: #333;
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-        .header p {
-            color: #666;
-            font-size: 14px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 500;
-            font-size: 14px;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-        .form-group input:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        .form-group.error input {
-            border-color: #dc3545;
-        }
-        .error-message {
-            color: #dc3545;
-            font-size: 12px;
-            margin-top: 5px;
-        }
-        .btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-        .btn:hover {
-            opacity: 0.9;
-        }
-        .link {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 14px;
-            color: #666;
-        }
-        .link a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .link a:hover {
-            text-decoration: underline;
-        }
-        .alert {
-            padding: 12px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            font-size: 14px;
-        }
-        .alert-danger {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
-        }
-        .alert-warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            color: #856404;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Reset Password</h1>
-            <p>Masukkan password baru Anda</p>
+@extends('tenant.layouts.guest')
+@section('title', 'Reset Password')
+
+@section('content')
+<div class="w-full max-w-md bg-white rounded-4xl shadow-xl shadow-gray-200/50 border border-gray-100 p-8 md:p-12 flex flex-col relative overflow-hidden">
+
+    <div class="flex flex-col items-center text-center mb-8">
+        <div class="w-20 h-20 bg-linear-to-br from-blue-500 to-primary rounded-full shadow-lg shadow-primary/20 flex items-center justify-center text-3xl mb-6">
+            ⚽
         </div>
-
-        @if (session('error'))
-            <div class="alert alert-danger">
-                {{ session('error') }}
-            </div>
-        @endif
-
-        @if ($errors->any())
-            <div class="alert alert-danger">
-                @foreach ($errors->all() as $error)
-                    <div>{{ $error }}</div>
-                @endforeach
-            </div>
-        @endif
-
-        <form action="{{ route('password.update') }}" method="POST">
-            @csrf
-
-            <input type="hidden" name="token" value="{{ $token }}">
-
-            <div class="form-group @error('password') error @enderror">
-                <label for="password">Password Baru</label>
-                <input type="password" id="password" name="password" placeholder="Minimal 8 karakter" required>
-                @error('password')
-                    <div class="error-message">{{ $message }}</div>
-                @enderror
-            </div>
-
-            <div class="form-group @error('password_confirmation') error @enderror">
-                <label for="password_confirmation">Konfirmasi Password</label>
-                <input type="password" id="password_confirmation" name="password_confirmation" placeholder="Ketik ulang password baru" required>
-                @error('password_confirmation')
-                    <div class="error-message">{{ $message }}</div>
-                @enderror
-            </div>
-
-            <button type="submit" class="btn">Reset Password</button>
-        </form>
-
-        <div class="link">
-            <a href="{{ route('login') }}">Kembali ke login</a>
-        </div>
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-3">Reset Password</h1>
+        <p class="text-sm text-gray-500 leading-relaxed max-w-70">
+            Silakan masukkan password baru Anda untuk mengatur ulang akses akun.
+        </p>
     </div>
-</body>
-</html>
+
+    @if (session('error'))
+        <div class="bg-red-50 border border-red-200 text-red-600 px-5 py-4 rounded-xl mb-6 text-sm font-medium text-center">
+            ⚠ {{ session('error') }}
+        </div>
+    @endif
+
+    @if ($errors->any())
+        <div class="bg-red-50 border border-red-200 text-red-600 px-5 py-4 rounded-xl mb-6 text-sm">
+            <span class="font-bold">Reset Gagal!</span>
+            <ul class="mt-2 ml-5 list-disc marker:text-red-400 space-y-1">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <form action="{{ route('password.update') }}" method="POST" class="flex flex-col gap-5">
+        @csrf
+        <input type="hidden" name="token" value="{{ $token }}">
+
+        <div>
+            <label for="password" class="block text-gray-700 text-sm font-medium mb-2">Password Baru</label>
+            <input type="password" id="password" name="password" placeholder="Minimal 8 karakter" required
+                class="w-full px-5 py-3.5 bg-gray-50 border {{ $errors->has('password') ? 'border-red-400 bg-red-50' : 'border-gray-200' }} rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
+
+            @error('password')
+                <span class="text-red-500 text-xs font-medium mt-1.5 block">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <div>
+            <label for="password_confirmation" class="block text-gray-700 text-sm font-medium mb-2">Konfirmasi Password</label>
+            <input type="password" id="password_confirmation" name="password_confirmation" placeholder="Ketik ulang password baru" required
+                class="w-full px-5 py-3.5 bg-gray-50 border {{ $errors->has('password_confirmation') ? 'border-red-400 bg-red-50' : 'border-gray-200' }} rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none">
+
+            @error('password_confirmation')
+                <span class="text-red-500 text-xs font-medium mt-1.5 block">{{ $message }}</span>
+            @enderror
+        </div>
+
+        <button type="submit" class="w-full bg-primary hover:bg-blue-800 text-white font-semibold py-4 rounded-xl shadow-lg shadow-primary/30 transition-all mt-2 text-sm md:text-base tracking-wide">
+            Simpan Password Baru
+        </button>
+    </form>
+
+    <div class="mt-8 text-center text-sm text-gray-600">
+        <a href="{{ route('login') }}" class="text-primary font-bold hover:text-blue-800 transition-colors">Kembali ke halaman Login</a>
+    </div>
+
+</div>
+@endsection

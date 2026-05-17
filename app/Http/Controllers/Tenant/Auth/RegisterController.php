@@ -8,22 +8,16 @@ use App\Models\EmailVerificationToken;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Auth; 
+use Illuminate\Support\Facades\Auth;
 use App\Mail\VerifyEmailMail;
 
 class RegisterController extends Controller
 {
-    /**
-     * Show the registration form
-     */
     public function showRegistrationForm()
     {
         return view('tenant.auth.register');
     }
 
-    /**
-     * Handle user registration
-     */
     public function register(Request $request)
     {
         $validated = $request->validate([
@@ -38,7 +32,7 @@ class RegisterController extends Controller
             'email.email' => 'Format email tidak valid',
             'email.unique' => 'Email sudah terdaftar',
             'phone.required' => 'Nomor HP harus diisi',
-            'phone.regex' => 'Format nomor HP tidak valid (gunakan format 08xx atau +62)',
+            'phone.regex' => 'Format nomor HP tidak valid',
             'phone.unique' => 'Nomor HP sudah terdaftar',
             'password.required' => 'Password harus diisi',
             'password.min' => 'Password minimal 8 karakter',
@@ -46,17 +40,16 @@ class RegisterController extends Controller
         ]);
 
         try {
-            // Create user with email_verified_at = null
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'phone' => $validated['phone'],
-                'password' => $validated['password'], // Auto-hashed via model
+                'password' => $validated['password'],
                 'role' => 'tenant',
             ]);
 
-            // Generate email verification token (valid 24 hours)
             $token = Str::random(64);
+
             EmailVerificationToken::create([
                 'user_id' => $user->id,
                 'email' => $user->email,
@@ -66,17 +59,14 @@ class RegisterController extends Controller
                 'expires_at' => now()->addHours(24),
             ]);
 
-            // Send verification email
             Mail::to($user->email)->send(new VerifyEmailMail($user, $token));
 
-            // Authenticate user and redirect to verification notice
             Auth::login($user);
 
             return redirect()->route('verification.notice')
-                           ->with('info', 'Registrasi berhasil! Silakan cek email Anda untuk verifikasi.');
+                             ->with('info', 'Registrasi berhasil! Silakan cek email Anda untuk verifikasi.');
         } catch (\Exception $e) {
-            return back()->withInput()
-                       ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            return back()->withInput()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
 }
