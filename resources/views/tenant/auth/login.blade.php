@@ -2,16 +2,16 @@
 @section('title', 'Login')
 
 @section('content')
-<div class="w-full max-w-5xl bg-white rounded-[2rem] md:rounded-[3rem] shadow-xl shadow-gray-200/50 border border-gray-100 flex flex-col md:flex-row overflow-hidden min-h-[550px]">
+<div class="w-full max-w-5xl bg-white rounded-4xl md:rounded-[3rem] shadow-xl shadow-gray-200/50 border border-gray-100 flex flex-col md:flex-row overflow-hidden min-h-[550px]">
 
-    <div class="md:w-5/12 bg-gradient-to-br from-blue-500 to-primary p-10 md:p-16 flex flex-col justify-center items-center text-center text-white relative overflow-hidden">
+    <div class="md:w-5/12 bg-linear-to-br from-blue-500 to-primary p-10 md:p-16 flex flex-col justify-center items-center text-center text-white relative overflow-hidden">
         <div class="absolute inset-0 bg-black/5"></div>
         <div class="relative z-10 flex flex-col items-center">
             <h2 class="text-lg md:text-xl font-medium mb-6 tracking-wide opacity-95">Selamat Datang Di</h2>
             <div class="w-32 h-32 md:w-40 md:h-40 bg-white/10 rounded-full border border-white/20 shadow-xl flex items-center justify-center text-5xl md:text-6xl mb-8 backdrop-blur-sm">
                 ⚽
             </div>
-            <p class="text-sm md:text-base leading-relaxed opacity-90 max-w-[260px]">
+            <p class="text-sm md:text-base leading-relaxed opacity-90 max-w-65">
                 Platform booking lapangan olahraga terpercaya dengan layanan terbaik untuk Anda
             </p>
         </div>
@@ -28,6 +28,12 @@
                         <li>{{ $error }}</li>
                     @endforeach
                 </ul>
+            </div>
+        @endif
+
+        @if (session('error'))
+            <div class="bg-red-50 border border-red-200 text-red-600 px-5 py-4 rounded-xl mb-6 text-sm font-medium">
+                ❌ {{ session('error') }}
             </div>
         @endif
 

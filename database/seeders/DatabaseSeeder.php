@@ -6,6 +6,7 @@ use Illuminate\Database\Seeder;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\FieldSeeder;
 use Database\Seeders\BookingSeeder;
+use Database\Seeders\EmployeeSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -15,6 +16,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             FieldSeeder::class,
             BookingSeeder::class,
+            EmployeeSeeder::class,
         ]);
     }
 }

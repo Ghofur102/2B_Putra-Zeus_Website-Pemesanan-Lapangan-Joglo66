@@ -131,16 +131,12 @@
 </div>
 
 {{-- FORM --}}
-<form id="cancelForm" method="POST" action="{{ route('booking.cancel.process', $detail->id) }}">
+<form id="cancelForm" method="POST" action="{{ route('tenant.booking.process.cancelled', $detail->id) }}">
     @csrf
     <input type="hidden" name="reason" id="inputReason">
 
     {{-- FOOTER TOMBOL --}}
     <div class="flex flex-col sm:flex-row items-center gap-4 mb-4">
-        <a href="{{ route('booking.history.show', $detail->id) }}"
-           class="w-full sm:w-auto px-8 py-3 bg-[#6B7280] text-white font-bold rounded-xl hover:bg-[#4B5563] transition text-center">
-            &larr; Kembali
-        </a>
         <button type="button" id="btnSubmit"
                 class="w-full sm:w-auto px-8 py-3 bg-[#2563EB] text-white font-bold rounded-xl hover:bg-[#1D4ED8] transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
             Lanjut Konfirmasi &rarr;

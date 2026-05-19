@@ -5,7 +5,6 @@
     $latestPayment = $booking->payments->sortByDesc('created_at')->first();
     $overallStatus = strtolower($latestPayment->status ?? 'unknown');
 
-    // Logika Sinkronisasi Harga Keseluruhan
     $totalHarga = $booking->details->sum('price') + $booking->attributes->sum('total');
     $sudahDibayar = $booking->payments->where('status', 'success')->sum('amount');
     $sisaTagihan = max(0, $totalHarga - $sudahDibayar);
@@ -16,12 +15,27 @@
         'failed'  => 'bg-rose-50 text-rose-700 border-rose-200',
         'expired' => 'bg-rose-50 text-rose-700 border-rose-200',
         'booked'  => 'bg-blue-50 text-blue-700 border-blue-200',
+        'active'  => 'bg-blue-50 text-blue-700 border-blue-200',
+        'reschedule' => 'bg-amber-50 text-amber-700 border-amber-200',
+        'cancelled' => 'bg-red-50 text-red-700 border-red-200',
     ];
     $badgeClass = $statusColors[$overallStatus] ?? 'bg-gray-50 text-gray-700 border-gray-200';
 @endphp
 
 @section('content')
 <div class="max-w-5xl mx-auto px-4 md:px-6 lg:px-8 pb-8 md:pb-12 mt-4 md:mt-0">
+
+    @if (session('success'))
+        <div class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-5 py-4 rounded-2xl mb-6 text-sm font-medium shadow-sm">
+            ✓ {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="bg-red-50 border border-red-200 text-red-600 px-5 py-4 rounded-2xl mb-6 text-sm font-medium shadow-sm">
+            ⚠ {{ session('error') }}
+        </div>
+    @endif
 
     <div class="bg-white rounded-3xl md:rounded-4xl shadow-sm border border-gray-200 overflow-hidden">
 
@@ -162,32 +176,65 @@
                 </div>
             @endif
 
-            @if (in_array($detail->status, ['active', 'waiting', 'reschedule']))
-                <div class="flex flex-col sm:flex-row gap-3 mt-6 md:mt-8">
-                    @if ($canReschedule && !$alreadyRescheduled)
-                        <a href="{{ route('booking.reschedule.form', $detail->id) }}"
-                           class="text-center bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-6 rounded-xl transition-all text-sm">
-                            Ubah Jadwal (Reschedule)
-                        </a>
-                    @endif
-                    @if ($canCancel)
-                        <a href="{{ route('booking.cancel.form', $detail->id) }}"
-                           class="text-center bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-xl transition-all text-sm">
-                            Batalkan Booking
-                        </a>
-                    @endif
+            <div class="mt-10 pt-8 border-t border-gray-200">
+                <h3 class="text-sm md:text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    Manajemen Jadwal Sesi
+                </h3>
+
+                <div class="flex flex-col gap-4">
+                    @foreach($booking->details as $detail)
+                        @php
+                            $statusSesi = strtolower($detail->status ?? 'pending');
+                            $playDate = \Carbon\Carbon::parse($detail->play_date)->startOfDay();
+                            $daysUntilPlay = now()->startOfDay()->diffInDays($playDate, false);
+
+                            $canReschedule = $daysUntilPlay >= 3;
+                            $canCancel = $daysUntilPlay >= 3;
+                            $alreadyRescheduled = ($statusSesi === 'reschedule');
+                        @endphp
+
+                        @if (in_array($statusSesi, ['active', 'waiting', 'success', 'booked', 'reschedule']))
+                            <div class="bg-gray-50 border border-gray-200 p-4 md:p-5 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+
+                                <div>
+                                    <p class="font-bold text-gray-800 text-sm md:text-base">
+                                        Sesi {{ \Carbon\Carbon::parse($detail->play_date)->format('d M Y') }}
+                                    </p>
+                                    <p class="text-xs md:text-sm text-gray-500 mt-0.5">
+                                        Pukul: {{ \Carbon\Carbon::parse($detail->start_play_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($detail->end_play_time)->format('H:i') }}
+                                    </p>
+                                </div>
+
+                                <div class="w-full md:w-auto flex flex-col sm:flex-row gap-2 md:gap-3">
+                                    @if ($canReschedule && !$alreadyRescheduled)
+                                        <a href="{{ route('tenant.booking.form.reschedule', ['detail_booking_id' => $detail->id]) }}" class="text-center bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 px-5 rounded-lg transition-all text-xs md:text-sm">
+                                            Reschedule
+                                        </a>
+                                    @endif
+
+                                    @if ($canCancel)
+                                        <a href="{{ route('tenant.booking.form.cancelled', ['detail_booking_id' => $detail->id]) }}" class="text-center bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-5 rounded-lg transition-all text-xs md:text-sm">
+                                            Batalkan
+                                        </a>
+                                    @endif
+
+                                    @if ($alreadyRescheduled)
+                                        <div class="px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs md:text-sm font-medium text-center">
+                                            Sudah di-reschedule.
+                                        </div>
+                                    @elseif (!$canReschedule)
+                                        <div class="px-4 py-2 bg-gray-100 border border-gray-200 text-gray-500 rounded-lg text-xs md:text-sm font-medium text-center">
+                                            Batas H-3 telah berlalu.
+                                        </div>
+                                    @endif
+                                </div>
+
+                            </div>
+                        @endif
+                    @endforeach
                 </div>
-            @endif
-            @if ($detail->status === 'reschedule')
-                <div class="mt-4 p-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-sm">
-                    Booking ini sudah direschedule. Tidak dapat mengubah jadwal lagi.
-                </div>
-            @endif
-            @if (!$canReschedule && $detail->status !== 'reschedule' && $detail->status !== 'cancelled')
-                <div class="mt-4 p-3 bg-gray-50 border border-gray-200 text-gray-500 rounded-lg text-sm">
-                    Reschedule dan pembatalan hanya bisa dilakukan minimal H-3 sebelum jadwal bermain.
-                </div>
-            @endif
+            </div>
 
         </div>
     </div>

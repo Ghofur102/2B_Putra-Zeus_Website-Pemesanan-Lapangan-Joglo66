@@ -36,7 +36,7 @@ if (appData) {
 
         for (let i = firstDay - 1; i >= 0; i--) {
             const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'calendar-day empty text-transparent';
+            emptyDiv.className = 'w-8 h-8 flex items-center justify-center mx-auto text-xs text-gray-300 font-medium text-transparent';
             emptyDiv.textContent = daysInPrevMonth - i;
             calendarDays.appendChild(emptyDiv);
         }
@@ -46,16 +46,22 @@ if (appData) {
             fullDate.setHours(0, 0, 0, 0);
             const dateStr = getLocalDateFormat(fullDate);
 
-            let className = 'calendar-day text-gray-700';
+            let className = 'w-8 h-8 flex items-center justify-center mx-auto text-xs font-medium rounded-full cursor-pointer transition-colors ';
+
             if (fullDate < today) {
-                className += ' past';
+                className += 'text-gray-300 cursor-not-allowed';
             } else {
-                if (fullDate.getTime() === today.getTime()) className += ' today';
-                if (selectedDate && fullDate.getTime() === new Date(selectedDate).setHours(0, 0, 0, 0)) className += ' selected';
+                className += 'text-gray-700 hover:bg-blue-50';
+                if (fullDate.getTime() === today.getTime()) {
+                    className = 'w-8 h-8 flex items-center justify-center mx-auto text-xs text-primary font-bold border border-primary rounded-full hover:bg-blue-50 cursor-pointer transition-colors';
+                }
+                if (selectedDate && fullDate.getTime() === new Date(selectedDate).setHours(0, 0, 0, 0)) {
+                    className = 'w-8 h-8 flex items-center justify-center mx-auto text-xs bg-primary text-white rounded-full font-bold shadow-sm cursor-pointer transition-colors';
+                }
 
                 const hasSlot = selectedSlots.some(s => s.date === dateStr);
-                if (hasSlot && fullDate.getTime() !== new Date(selectedDate).setHours(0, 0, 0, 0)) {
-                    className += ' bg-blue-50 ring-1 ring-primary text-primary font-bold';
+                if (hasSlot && (!selectedDate || fullDate.getTime() !== new Date(selectedDate).setHours(0, 0, 0, 0))) {
+                    className = 'w-8 h-8 flex items-center justify-center mx-auto text-xs bg-blue-50 text-primary ring-1 ring-primary rounded-full font-bold cursor-pointer transition-colors';
                 }
             }
 
@@ -73,7 +79,7 @@ if (appData) {
         const remaining = 42 - calendarDays.children.length;
         for (let i = 1; i <= remaining; i++) {
             const emptyDiv = document.createElement('div');
-            emptyDiv.className = 'calendar-day empty text-transparent';
+            emptyDiv.className = 'w-8 h-8 flex items-center justify-center mx-auto text-xs text-gray-300 font-medium text-transparent';
             emptyDiv.textContent = i;
             calendarDays.appendChild(emptyDiv);
         }
@@ -117,29 +123,59 @@ if (appData) {
 
             const isSelected = selectedSlots.some(s => s.date === dateStr && s.jam === slot.jam);
 
-            const pill = document.createElement('div');
-            pill.className = `slot-pill ${finalStatus} ${isSelected ? 'selected' : ''}`;
+            // Membuat Elemen Tombol mirip halaman Reschedule
+            const btn = document.createElement('button');
+            btn.type = 'button';
 
-            let labelText = `${slot.jam} - ${slot.jam_akhir}`;
-            if (finalStatus === 'terisi') labelText += ' (Terisi)';
-            else if (finalStatus === 'tutup') labelText += ' (Tutup)';
+            const isDisabled = finalStatus !== 'kosong';
+            if (isDisabled) btn.disabled = true;
 
-            pill.textContent = labelText;
+            let btnClass = 'slot-btn px-3 py-3 rounded-xl border text-sm font-medium transition text-center flex flex-col justify-center ';
+            let priceClass = 'block text-xs mt-0.5 price-label ';
 
             if (finalStatus === 'kosong') {
-                pill.onclick = () => {
+                if (isSelected) {
+                    btnClass += 'bg-primary text-white border-primary shadow-sm';
+                    priceClass += 'text-blue-100';
+                } else {
+                    btnClass += 'bg-white border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-primary';
+                    priceClass += 'text-gray-500';
+                }
+            } else {
+                btnClass += 'bg-gray-100 border-gray-200 text-gray-300 cursor-not-allowed';
+                priceClass += 'text-gray-400';
+            }
+
+            btn.className = btnClass;
+
+            let statusHtml = '';
+            if (finalStatus === 'terisi') statusHtml = '<span class="text-red-500 font-bold ml-1 block mt-1">&middot; Terisi</span>';
+            else if (finalStatus === 'tutup') statusHtml = '<span class="text-red-500 font-bold ml-1 block mt-1">&middot; Tutup</span>';
+            else if (finalStatus === 'lewat') statusHtml = '<span class="text-gray-400 font-bold ml-1 block mt-1">&middot; Lewat</span>';
+
+            btn.innerHTML = `
+                ${slot.jam.substring(0,5)} - ${slot.jam_akhir.substring(0,5)}
+                <span class="${priceClass}">
+                    Rp ${new Intl.NumberFormat('id-ID').format(slot.harga)}
+                    ${statusHtml}
+                </span>
+            `;
+
+            if (finalStatus === 'kosong') {
+                btn.onclick = () => {
                     const existingIdx = selectedSlots.findIndex(s => s.date === dateStr && s.jam === slot.jam);
                     if (existingIdx > -1) {
-                        selectedSlots.splice(existingIdx, 1); // Hapus jika sudah ada
+                        selectedSlots.splice(existingIdx, 1);
                     } else {
-                        selectedSlots.push({ date: dateStr, jam: slot.jam, jam_akhir: slot.jam_akhir, harga: slot.harga }); // Tambah
+                        selectedSlots.push({ date: dateStr, jam: slot.jam, jam_akhir: slot.jam_akhir, harga: slot.harga });
                     }
                     renderSlotJam();
                     renderCalendar();
                     updateSelectedInfo();
                 };
             }
-            slotGrid.appendChild(pill);
+
+            slotGrid.appendChild(btn);
         });
     }
 
@@ -152,7 +188,6 @@ if (appData) {
             infoEl.textContent = `${selectedSlots.length} Slot di ${uniqueDates} Hari Berbeda`;
             submitBtn.disabled = false;
 
-            // Kirim data JSON keranjang utuh ke Backend
             document.getElementById('formSelectedSlots').value = JSON.stringify(selectedSlots);
         } else {
             infoEl.textContent = 'Belum dipilih';

@@ -26,7 +26,7 @@
             </div>
 
             @if($selectedFieldId)
-                <a href="{{ route('tenant.booking.schedule', ['field_id' => $selectedFieldId]) }}" class="bg-primary text-white px-6 py-2.5 rounded-full text-base font-medium inline-block mt-2 w-fit hover:bg-blue-800 transition shadow-sm">Pesan Now</a>
+                <a href="{{ route('tenant.booking.create-form', ['field_id' => $selectedFieldId]) }}" class="bg-primary text-white px-6 py-2.5 rounded-full text-base font-medium inline-block mt-2 w-fit hover:bg-blue-800 transition shadow-sm">Pesan Now</a>
             @else
                 <a href="#" id="disabledPesanBtn" class="bg-primary opacity-70 text-white px-6 py-2.5 rounded-full text-base font-medium inline-block mt-2 w-fit cursor-not-allowed shadow-sm">Pesan Now</a>
             @endif

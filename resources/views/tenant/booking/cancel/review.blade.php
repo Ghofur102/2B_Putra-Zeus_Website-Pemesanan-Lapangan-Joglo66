@@ -55,11 +55,11 @@
 
         {{-- FOOTER TOMBOL --}}
         <div class="flex flex-col sm:flex-row gap-4">
-            <a href="{{ route('booking.cancel.form', $detail->id) }}"
+            <a href="{{ route('tenant.booking.process.cancelled', $detail->id) }}"
                class="w-full sm:w-1/2 text-center px-6 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition">
                 Batal Konfirmasi
             </a>
-            <form method="POST" action="{{ route('booking.cancel.process', $detail->id) }}" class="w-full sm:w-1/2">
+            <form method="POST" action="{{ route('tenant.booking.process.cancelled', $detail->id) }}" class="w-full sm:w-1/2">
                 @csrf
                 <input type="hidden" name="reason" value="{{ $validated['reason'] }}">
                 <input type="hidden" name="confirmed" value="1">

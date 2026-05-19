@@ -10,7 +10,6 @@ use App\Http\Controllers\Tenant\Booking\DashboardController;
 use App\Http\Controllers\Tenant\Booking\ScheduleController;
 use App\Http\Controllers\Tenant\Booking\RescheduleDetailBookingController;
 use App\Http\Controllers\Tenant\Booking\CancelledDetailBookingController;
-use App\Http\Controllers\Tenant\Payment\PaymentController;
 use App\Http\Controllers\Tenant\Booking\HistoryController;
 use App\Http\Middleware\CheckTenantRole;
 

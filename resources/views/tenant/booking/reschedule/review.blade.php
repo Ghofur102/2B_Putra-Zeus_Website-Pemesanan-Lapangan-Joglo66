@@ -55,11 +55,11 @@
 
         {{-- FOOTER TOMBOL --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <a href="{{ route('booking.reschedule.form', $detail->id) }}"
+            <a href="{{ route('tenant.booking.process.reschedule', $detail->id) }}"
                class="block text-center px-6 py-3 bg-white border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition">
                 Batal Konfirmasi
             </a>
-            <form method="POST" action="{{ route('booking.reschedule.process', $detail->id) }}" class="block">
+            <form method="POST" action="{{ route('tenant.booking.process.reschedule', $detail->id) }}" class="block">
                 @csrf
                 <input type="hidden" name="new_play_date" value="{{ $validated['new_play_date'] }}">
                 <input type="hidden" name="new_start_play_time" value="{{ $validated['new_start_play_time'] }}">

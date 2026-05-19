@@ -33,6 +33,6 @@ class FieldClosure extends Model
 
     public function bookingCancelled(): HasMany
     {
-        return $this->hasMany(BookingCancle::class, 'fk_field_closure_id', 'id');
+        return $this->hasMany(BookingCancelled::class, 'fk_field_closure_id', 'id');
     }
 }

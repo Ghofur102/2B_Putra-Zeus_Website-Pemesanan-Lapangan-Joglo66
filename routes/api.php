@@ -8,6 +8,8 @@ use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Tenant\Payment\DuitkuController;
 use Illuminate\Http\Request;
+use App\Http\Controllers\AttributeController;
+use App\Http\Controllers\AttributeRentalController;
 
 // Payment Gateway
 Route::post('/duitku/callback', [DuitkuController::class, 'callback']);
@@ -63,6 +65,4 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
         return $request->user();
     });
 });
-
-Route::post('/tripay/callback', [\App\Http\Controllers\Tenant\Payment\PaymentController::class, 'tripayCallback']);
 

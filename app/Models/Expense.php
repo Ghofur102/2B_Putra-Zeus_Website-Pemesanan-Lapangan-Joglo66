@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Expense extends Model
 {
@@ -23,5 +24,10 @@ class Expense extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'fk_user_id', 'id');
+    }
+
+    public function salaries(): HasMany
+    {
+        return $this->hasMany(EmployeeSalary::class, 'fk_expense_id', 'id');
     }
 }

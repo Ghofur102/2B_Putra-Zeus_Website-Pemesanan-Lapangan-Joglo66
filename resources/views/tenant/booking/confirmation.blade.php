@@ -23,18 +23,21 @@
                     <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                 @endslot
 
-                <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Tim / Penyewa</label>
-                        <input type="text" name="team_name" required placeholder="Masukkan nama tim" class="w-full px-4 py-2.5 rounded-full border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Tim / Penyewa <span class="text-red-500">*</span></label>
+                        <input type="text" name="team_name" required placeholder="Masukkan nama tim" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
                     </div>
+
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Nomor WhatsApp</label>
-                        <input type="number" name="phone_number" required placeholder="Contoh: 08123456789" class="w-full px-4 py-2.5 rounded-full border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                        <input type="text" value="{{ auth()->user()->phone_number ?? auth()->user()->phone ?? '-' }}" readonly class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none">
+                        <p class="text-[11px] text-gray-400 mt-1 font-medium italic">*Nomor diambil dari data profil Anda.</p>
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                        <input type="email" name="customer_email" required placeholder="Contoh: email@domain.com" class="w-full px-4 py-2.5 rounded-full border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary">
+                        <input type="email" value="{{ auth()->user()->email }}" readonly class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none">
+                        <p class="text-[11px] text-gray-400 mt-1 font-medium italic">*Email diambil dari data profil Anda.</p>
                     </div>
                 </div>
             @endcomponent

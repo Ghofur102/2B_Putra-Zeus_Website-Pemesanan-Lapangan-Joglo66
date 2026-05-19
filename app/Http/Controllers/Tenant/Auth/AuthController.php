@@ -34,31 +34,43 @@ class AuthController extends Controller
             'remember_me' => ['nullable', 'boolean'],
         ]);
 
-        // Gunakan Auth::attempt() — ini yang benar untuk 'hashed' cast
         $credentials = [
             'email'    => $validated['email'],
             'password' => $validated['password'],
         ];
 
-        // Cek kredensial TANPA login dulu
         if (!Auth::validate($credentials)) {
             throw ValidationException::withMessages([
                 'email' => 'Email atau password tidak sesuai',
             ]);
         }
 
-        // Ambil user setelah kredensial valid
         $user = User::where('email', $validated['email'])->first();
 
-        // Cek verifikasi email
         if ($user->email_verified_at === null) {
             return redirect()->route('login')
                 ->with('warning', 'Email Anda belum diverifikasi. Silakan cek inbox email.');
         }
 
-        // Login
         Auth::login($user, $validated['remember_me'] ?? false);
 
+        $request->session()->regenerate();
+
+        if ($user->role === 'tenant') {
+            return redirect()->route('tenant.booking.dashboard')
+                ->with('success', 'Login berhasil!');
+        }
+
+        if (in_array($user->role, ['manager', 'owner', 'worker', 'treasurer'])) {
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')
+                ->with('error', 'Akses ditolak! Halaman ini khusus untuk Penyewa.');
+        }
+
+        // Fallback default
         return redirect()->route('profile.show')
             ->with('success', 'Login berhasil!');
     }
@@ -69,8 +81,8 @@ class AuthController extends Controller
     public function logout()
     {
         Auth::logout();
-        session()->invalidate();
-        session()->regenerateToken();
+        session()?->invalidate();
+        session()?->regenerateToken();
 
         return redirect()->route('login')
             ->with('success', 'Logout berhasil');
