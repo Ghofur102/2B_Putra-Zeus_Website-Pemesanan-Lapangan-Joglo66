@@ -1,27 +1,6 @@
 @extends('tenant.layouts.app')
 @section('title', 'Detail Transaksi')
 
-@php
-    $latestPayment = $booking->payments->sortByDesc('created_at')->first();
-    $overallStatus = strtolower($latestPayment->status ?? 'unknown');
-
-    $totalHarga = $booking->details->sum('price') + $booking->attributes->sum('total');
-    $sudahDibayar = $booking->payments->where('status', 'success')->sum('amount');
-    $sisaTagihan = max(0, $totalHarga - $sudahDibayar);
-
-    $statusColors = [
-        'success' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        'pending' => 'bg-amber-50 text-amber-700 border-amber-200',
-        'failed'  => 'bg-rose-50 text-rose-700 border-rose-200',
-        'expired' => 'bg-rose-50 text-rose-700 border-rose-200',
-        'booked'  => 'bg-blue-50 text-blue-700 border-blue-200',
-        'active'  => 'bg-blue-50 text-blue-700 border-blue-200',
-        'reschedule' => 'bg-amber-50 text-amber-700 border-amber-200',
-        'cancelled' => 'bg-red-50 text-red-700 border-red-200',
-    ];
-    $badgeClass = $statusColors[$overallStatus] ?? 'bg-gray-50 text-gray-700 border-gray-200';
-@endphp
-
 @section('content')
 <div class="max-w-5xl mx-auto px-4 md:px-6 lg:px-8 pb-8 md:pb-12 mt-4 md:mt-0">
 
@@ -46,13 +25,13 @@
                     Detail Pemesanan
                 </h1>
                 <p class="text-gray-500 text-xs md:text-sm mt-1.5 md:mt-2 font-mono">
-                    No. Ref: <span class="font-bold text-gray-800">{{ $latestPayment->reference_id ?? 'Menunggu Pembayaran' }}</span>
+                    No. Ref: <span class="font-bold text-gray-800">{{ $booking->mainPayment->reference_id ?? 'Menunggu Pembayaran' }}</span>
                 </p>
             </div>
 
             <div class="flex flex-col items-start md:items-end gap-1.5 md:gap-2">
-                <span class="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold border {{ $badgeClass }} uppercase tracking-wider">
-                    Status: {{ $overallStatus }}
+                <span class="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold border {{ $booking->badgeClass }} uppercase tracking-wider">
+                    Status: {{ $booking->overallStatus }}
                 </span>
                 <p class="text-gray-400 text-[10px] md:text-xs">Dibuat: {{ $booking->created_at->format('d M Y, H:i') }} WIB</p>
             </div>
@@ -102,22 +81,17 @@
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach($booking->details as $detail)
-                            @php
-                                $detailPayment = $detail->payment->sortByDesc('created_at')->first();
-                                $detailStatus = strtolower($detail->status ?? $detailPayment->status ?? 'pending');
-                                $detailBadge = $statusColors[$detailStatus] ?? 'bg-gray-50 text-gray-700 border-gray-200';
-                            @endphp
-                            <tr class="hover:bg-gray-50/80 transition-colors">
+                            <tr class="hover:bg-gray-50/80 transition-colors {{ $detail->detailStatus === 'cancelled' ? 'opacity-60' : '' }}">
                                 <td class="px-4 py-3 md:px-6 md:py-4 text-gray-900">{{ \Carbon\Carbon::parse($detail->play_date)->format('d M Y') }}</td>
                                 <td class="px-4 py-3 md:px-6 md:py-4 text-gray-900 font-medium">
                                     {{ \Carbon\Carbon::parse($detail->start_play_time)->format('H:i') }} - {{ \Carbon\Carbon::parse($detail->end_play_time)->format('H:i') }}
                                 </td>
                                 <td class="px-4 py-3 md:px-6 md:py-4">
-                                    <span class="px-2.5 py-1 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-semibold border {{ $detailBadge }} capitalize">
-                                        {{ $detailStatus }}
+                                    <span class="px-2.5 py-1 md:px-3 md:py-1 rounded-full text-[10px] md:text-xs font-semibold border {{ $detail->detailBadge }} capitalize">
+                                        {{ $detail->detailStatus }}
                                     </span>
                                 </td>
-                                <td class="px-4 py-3 md:px-6 md:py-4 font-semibold text-gray-900 text-right">
+                                <td class="px-4 py-3 md:px-6 md:py-4 font-semibold {{ $detail->detailStatus === 'cancelled' ? 'line-through text-gray-400' : 'text-gray-900' }} text-right">
                                     Rp {{ number_format($detail->price, 0, ',', '.') }}
                                 </td>
                             </tr>
@@ -126,50 +100,63 @@
                 </table>
             </div>
 
-            <div class="w-full text-xs md:text-sm bg-gray-50/50 p-5 md:p-8 rounded-xl md:rounded-2xl border border-gray-100 mt-6 md:mt-10">
+            {{-- BLOK RINCIAN KEUANGAN BARU --}}
+            <div class="w-full text-xs md:text-sm bg-white p-5 md:p-8 rounded-xl md:rounded-2xl border border-gray-200 shadow-sm mt-6 md:mt-10">
+                <h3 class="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Rincian Pembayaran</h3>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-y-3 md:gap-y-4 gap-x-8 md:gap-x-16">
+                <div class="flex flex-col gap-3 md:gap-4">
                     <div class="flex justify-between items-center">
-                        <span class="text-gray-500 font-medium shrink-0">Tipe Pembayaran</span>
-                        <span class="font-bold text-gray-900 capitalize text-right">{{ $latestPayment->payment_type ?? 'Menunggu' }}</span>
+                        <span class="text-gray-600 font-medium">Metode Pembayaran</span>
+                        <span class="font-bold text-gray-900 uppercase">{{ $booking->mainPayment->method ?? '-' }}</span>
                     </div>
 
                     <div class="flex justify-between items-center">
-                        <span class="text-gray-500 font-medium shrink-0">Metode Bayar</span>
-                        <span class="font-bold text-gray-900 uppercase text-right">{{ $latestPayment->method ?? '-' }}</span>
+                        <span class="text-gray-600 font-medium">Tipe Pembayaran</span>
+                        <span class="font-bold text-gray-900 capitalize">{{ $booking->mainPayment->payment_type ?? 'Menunggu' }}</span>
                     </div>
 
-                    <div class="md:hidden border-t border-gray-200/60 my-1"></div>
-
-                    <div class="flex justify-between items-center">
-                        <span class="text-gray-500 font-medium shrink-0">Total Harga</span>
-                        <span class="font-bold text-gray-900 text-right">Rp {{ number_format($totalHarga, 0, ',', '.') }}</span>
-                    </div>
+                    <div class="border-t border-dashed border-gray-200 my-1"></div>
 
                     <div class="flex justify-between items-center">
-                        <span class="text-gray-500 font-medium shrink-0">Sudah Dibayar</span>
-                        <span class="font-bold text-green-600 text-right">Rp {{ number_format($sudahDibayar, 0, ',', '.') }}</span>
+                        <span class="text-gray-600 font-medium">Tagihan Sesi Aktif</span>
+                        <span class="font-bold text-gray-900">Rp {{ number_format($booking->tagihanAktif, 0, ',', '.') }}</span>
                     </div>
+
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600 font-medium">Total Dana Masuk</span>
+                        <span class="font-bold text-emerald-600">+ Rp {{ number_format($booking->uangMasuk, 0, ',', '.') }}</span>
+                    </div>
+
+                    @if($booking->uangRefund > 0)
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600 font-medium">Total Dana Dikembalikan (Refund)</span>
+                        <span class="font-bold text-orange-500">- Rp {{ number_format($booking->uangRefund, 0, ',', '.') }}</span>
+                    </div>
+                    @endif
                 </div>
 
                 <div class="flex justify-between items-center mt-5 md:mt-6 pt-5 md:pt-6 border-t border-gray-200">
                     <span class="text-base md:text-lg font-bold text-gray-800">Sisa Tagihan</span>
 
-                    @if($sisaTagihan == 0)
+                    @if($booking->overallStatus === 'cancelled' && $booking->sisaTagihan == 0)
+                        <span class="px-4 py-1.5 md:px-5 md:py-2 bg-gray-100 text-gray-500 rounded-lg font-black tracking-widest uppercase text-xs md:text-sm border border-gray-200 shadow-sm">
+                            DIBATALKAN
+                        </span>
+                    @elseif($booking->sisaTagihan == 0)
                         <span class="px-4 py-1.5 md:px-5 md:py-2 bg-green-100 text-green-700 rounded-lg font-black tracking-widest uppercase text-xs md:text-sm border border-green-200 shadow-sm">
                             LUNAS
                         </span>
                     @else
                         <span class="text-xl md:text-2xl font-black text-red-500 tracking-tight">
-                            Rp {{ number_format($sisaTagihan, 0, ',', '.') }}
+                            Rp {{ number_format($booking->sisaTagihan, 0, ',', '.') }}
                         </span>
                     @endif
                 </div>
             </div>
 
-            @if($overallStatus === 'pending' && isset($latestPayment->payment_url))
+            @if($booking->overallStatus === 'pending' && isset($booking->mainPayment->payment_url))
                 <div class="flex justify-end mt-6 md:mt-8">
-                    <a href="{{ $latestPayment->payment_url }}" target="_blank" class="flex justify-center items-center gap-2 w-full md:w-auto bg-primary hover:bg-blue-800 text-white font-semibold py-3.5 px-6 md:px-10 rounded-xl shadow-lg shadow-blue-500/30 transition-all text-sm md:text-base">
+                    <a href="{{ $booking->mainPayment->payment_url }}" target="_blank" class="flex justify-center items-center gap-2 w-full md:w-auto bg-primary hover:bg-blue-800 text-white font-semibold py-3.5 px-6 md:px-10 rounded-xl shadow-lg shadow-blue-500/30 transition-all text-sm md:text-base">
                         Lanjutkan Pembayaran
                         <svg class="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
                     </a>
@@ -184,17 +171,8 @@
 
                 <div class="flex flex-col gap-4">
                     @foreach($booking->details as $detail)
-                        @php
-                            $statusSesi = strtolower($detail->status ?? 'pending');
-                            $playDate = \Carbon\Carbon::parse($detail->play_date)->startOfDay();
-                            $daysUntilPlay = now()->startOfDay()->diffInDays($playDate, false);
 
-                            $canReschedule = $daysUntilPlay >= 3;
-                            $canCancel = $daysUntilPlay >= 3;
-                            $alreadyRescheduled = ($statusSesi === 'reschedule');
-                        @endphp
-
-                        @if (in_array($statusSesi, ['active', 'waiting', 'success', 'booked', 'reschedule']))
+                        @if (in_array($detail->detailStatus, ['active', 'waiting', 'success', 'booked', 'reschedule']))
                             <div class="bg-gray-50 border border-gray-200 p-4 md:p-5 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
 
                                 <div>
@@ -207,23 +185,23 @@
                                 </div>
 
                                 <div class="w-full md:w-auto flex flex-col sm:flex-row gap-2 md:gap-3">
-                                    @if ($canReschedule && !$alreadyRescheduled)
+                                    @if ($detail->canReschedule && !$detail->alreadyRescheduled)
                                         <a href="{{ route('tenant.booking.form.reschedule', ['detail_booking_id' => $detail->id]) }}" class="text-center bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5 px-5 rounded-lg transition-all text-xs md:text-sm">
                                             Reschedule
                                         </a>
                                     @endif
 
-                                    @if ($canCancel)
+                                    @if ($detail->canCancel)
                                         <a href="{{ route('tenant.booking.form.cancelled', ['detail_booking_id' => $detail->id]) }}" class="text-center bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-5 rounded-lg transition-all text-xs md:text-sm">
                                             Batalkan
                                         </a>
                                     @endif
 
-                                    @if ($alreadyRescheduled)
+                                    @if ($detail->alreadyRescheduled)
                                         <div class="px-4 py-2 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs md:text-sm font-medium text-center">
                                             Sudah di-reschedule.
                                         </div>
-                                    @elseif (!$canReschedule)
+                                    @elseif (!$detail->canReschedule)
                                         <div class="px-4 py-2 bg-gray-100 border border-gray-200 text-gray-500 rounded-lg text-xs md:text-sm font-medium text-center">
                                             Batas H-3 telah berlalu.
                                         </div>

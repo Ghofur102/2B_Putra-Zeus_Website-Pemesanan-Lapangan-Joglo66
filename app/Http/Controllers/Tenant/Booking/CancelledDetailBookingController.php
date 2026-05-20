@@ -18,8 +18,8 @@ class CancelledDetailBookingController extends Controller
     const PAYMENT_FINAL = 'final payment';
     const PAYMENT_RESCHEDULE_FEE = 'reschedule fee';
     const PAYMENT_REFUND = 'refund';
-    const STATUS_REFUND_REFUNDABLE = 'refundable';
-    const STATUS_REFUND_NON_REFUNDABLE = 'non-refundable';
+    const STATUS_REFUND_REFUNDABLE = 'Full';
+    const STATUS_REFUND_NON_REFUNDABLE = 'None';
 
     public function formInput($detail_booking_id)
     {
@@ -125,16 +125,26 @@ class CancelledDetailBookingController extends Controller
 
     private function getPaymentTotals(BookingDetail $detail): int
     {
-        $paid = Payment::where('fk_booking_id', $detail->fk_booking_id)
+        $successfulPayments = Payment::where('fk_booking_id', $detail->fk_booking_id)
             ->where('status', 'success')
-            ->whereIn('payment_type', [self::PAYMENT_DP, self::PAYMENT_FINAL, self::PAYMENT_RESCHEDULE_FEE])
-            ->sum('amount');
+            ->get();
 
-        $refunded = Payment::where('fk_booking_id', $detail->fk_booking_id)
+        $hasFinal = $successfulPayments->where('payment_type', self::PAYMENT_FINAL)->isNotEmpty();
+        $hasDP = $successfulPayments->where('payment_type', self::PAYMENT_DP)->isNotEmpty();
+
+        $paidForThisSlot = 0;
+
+        if ($hasFinal) {
+            $paidForThisSlot = $detail->price;
+        } elseif ($hasDP) {
+            $paidForThisSlot = $detail->price / 2;
+        }
+
+        $refunded = Payment::where('fk_booking_detail_id', $detail->id)
             ->where('status', 'success')
             ->where('payment_type', self::PAYMENT_REFUND)
             ->sum('amount');
 
-        return $paid - $refunded;
+        return $paidForThisSlot - $refunded;
     }
 }

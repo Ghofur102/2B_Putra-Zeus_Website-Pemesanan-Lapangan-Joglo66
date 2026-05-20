@@ -133,6 +133,7 @@
 {{-- FORM --}}
 <form id="cancelForm" method="POST" action="{{ route('tenant.booking.process.cancelled', $detail->id) }}">
     @csrf
+    <input type="hidden" name="detail_booking_id" value="{{ $detail->id }}">
     <input type="hidden" name="reason" id="inputReason">
 
     {{-- FOOTER TOMBOL --}}

@@ -59,11 +59,11 @@
                                 @if ($disabled) disabled @endif
                                 class="slot-btn px-4 py-3 rounded-xl border text-sm font-medium transition-all text-center flex flex-col justify-center
                                        @if ($isOriginal) bg-amber-50 border-amber-300 text-amber-700 cursor-not-allowed
-                                       @elseif ($disabled) bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed
-                                       @else bg-white border-gray-200 text-gray-700 hover:bg-blue-50 hover:border-primary @endif">
+                                       @elseif ($disabled)
+                                       @else hover:bg-blue-50 hover:border-primary @endif">
 
                             <span class="text-base">{{ substr($slot['start'], 0, 5) }} - {{ substr($slot['end'], 0, 5) }}</span>
-                            <span class="block text-xs mt-1 price-label @if($isOriginal) text-amber-600 @elseif($disabled) text-gray-400 @else text-gray-500 @endif">
+                            <span class="block text-xs mt-1 price-label @if($isOriginal) text-amber-600 @elseif($disabled) @else @endif">
                                 Rp {{ number_format($slot['price'], 0, ',', '.') }}
 
                                 @if ($isOriginal)

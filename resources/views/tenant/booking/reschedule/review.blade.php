@@ -61,6 +61,7 @@
             </a>
             <form method="POST" action="{{ route('tenant.booking.process.reschedule', $detail->id) }}" class="block">
                 @csrf
+                <input type="hidden" name="detail_booking_id" value="{{ $detail->id }}">
                 <input type="hidden" name="new_play_date" value="{{ $validated['new_play_date'] }}">
                 <input type="hidden" name="new_start_play_time" value="{{ $validated['new_start_play_time'] }}">
                 <input type="hidden" name="new_end_play_time" value="{{ $validated['new_end_play_time'] }}">

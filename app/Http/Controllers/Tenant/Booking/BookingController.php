@@ -24,8 +24,8 @@ class BookingController extends Controller
     const STATUS_REFUND_DEPOSIT = 'deposit required';
     const STATUS_REFUND_REFUND = 'refund required';
     const STATUS_REFUND_NONE = 'none';
-    const STATUS_REFUND_REFUNDABLE = 'refundable';
-    const STATUS_REFUND_NON_REFUNDABLE = 'non-refundable';
+    const STATUS_REFUND_REFUNDABLE = 'Full';
+    const STATUS_REFUND_NON_REFUNDABLE = 'None';
 
     public function createForm(Request $request)
     {

@@ -73,35 +73,20 @@
     <div class="flex flex-col gap-3" id="transactionContainer">
 
         @forelse($transactions as $trx)
-            @php
-                $latestPayment = $trx->payments->sortByDesc('created_at')->first();
-                $status = strtolower($latestPayment->status ?? 'unknown');
-
-                $totalHarga = $trx->details->sum('price') + $trx->attributes->sum('total');
-                $sudahDibayar = $trx->payments->where('status', 'success')->sum('amount');
-                $sisaTagihan = max(0, $totalHarga - $sudahDibayar);
-
-                $badgeClass = 'bg-gray-100 text-gray-600 border border-gray-200';
-                if ($status === 'success') $badgeClass = 'bg-green-50 text-green-600 border border-green-200';
-                elseif ($status === 'pending') $badgeClass = 'bg-yellow-50 text-yellow-600 border border-yellow-200';
-                elseif ($status === 'failed' || $status === 'expired') $badgeClass = 'bg-red-50 text-red-600 border border-red-200';
-
-                $rawDate = \Carbon\Carbon::parse($trx->booking_date)->format('Y-m-d');
-                $rawSearchData = strtolower($trx->team_name . ' ' . ($latestPayment->reference_id ?? ''));
-            @endphp
-
             <div class="transaction-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-all"
-                data-search="{{ $rawSearchData }}" data-date="{{ $rawDate }}" data-status="{{ $status }}">
+                data-search="{{ strtolower($trx->team_name . ' ' . ($trx->mainPayment->reference_id ?? '')) }}"
+                data-date="{{ \Carbon\Carbon::parse($trx->booking_date)->format('Y-m-d') }}"
+                data-status="{{ $trx->overallStatus }}">
 
                 <div class="flex-1 min-w-50">
                     <div class="flex items-center gap-3 mb-1">
                         <h3 class="font-bold text-gray-800 text-base md:text-lg line-clamp-1">{{ $trx->team_name }}</h3>
-                        <span class="px-2.5 py-0.5 rounded-md text-[10px] font-bold {{ $badgeClass }} uppercase tracking-wider shrink-0">
-                            {{ $status }}
+                        <span class="px-2.5 py-0.5 rounded-md text-[10px] font-bold {{ $trx->badgeClass }} uppercase tracking-wider shrink-0">
+                            {{ $trx->overallStatus }}
                         </span>
                     </div>
                     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-                        <span class="font-mono text-gray-600">{{ $latestPayment->reference_id ?? 'No Ref' }}</span>
+                        <span class="font-mono text-gray-600">{{ $trx->mainPayment->reference_id ?? 'No Ref' }}</span>
                         <span class="hidden sm:inline-block text-gray-300">•</span>
                         <span>{{ \Carbon\Carbon::parse($trx->booking_date)->format('d M Y') }}</span>
                     </div>
@@ -109,14 +94,26 @@
 
                 <div class="flex items-center gap-5 md:gap-8 text-sm md:border-l md:border-r border-gray-100 md:px-6">
                     <div class="flex flex-col">
-                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total Tagihan</span>
-                        <span class="font-semibold text-gray-800">Rp {{ number_format($totalHarga, 0, ',', '.') }}</span>
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Tagihan Aktif</span>
+                        <span class="font-semibold text-gray-800">Rp {{ number_format($trx->tagihanAktif, 0, ',', '.') }}</span>
                     </div>
+
+                    @if($trx->uangRefund > 0)
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-0.5">Di-Refund</span>
+                        <span class="font-bold text-orange-500">Rp {{ number_format($trx->uangRefund, 0, ',', '.') }}</span>
+                    </div>
+                    @endif
+
                     <div class="flex flex-col">
                         <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Sisa Tagihan</span>
-                        <span class="font-bold {{ $sisaTagihan > 0 ? 'text-red-500' : 'text-green-600' }}">
-                            Rp {{ number_format($sisaTagihan, 0, ',', '.') }}
-                        </span>
+                        @if($trx->overallStatus === 'cancelled' && $trx->sisaTagihan == 0)
+                            <span class="font-bold text-gray-400">-</span>
+                        @else
+                            <span class="font-bold {{ $trx->sisaTagihan > 0 ? 'text-red-500' : 'text-green-600' }}">
+                                Rp {{ number_format($trx->sisaTagihan, 0, ',', '.') }}
+                            </span>
+                        @endif
                     </div>
                 </div>
 

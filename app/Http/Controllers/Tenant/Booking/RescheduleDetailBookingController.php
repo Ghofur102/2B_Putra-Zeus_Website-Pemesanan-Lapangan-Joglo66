@@ -41,7 +41,7 @@ class RescheduleDetailBookingController extends Controller
 
             $slots = $this->getSlotsForDate($detail->booking->fk_field_id, $selectedDate, $detail);
 
-            return view('tenant.bookings.reschedule.index', compact(
+            return view('tenant.booking.reschedule.index', compact(
                 'detail', 'calendar', 'month', 'year', 'selectedDate',
                 'prevMonth', 'nextMonth', 'slots'
             ));
@@ -84,7 +84,7 @@ class RescheduleDetailBookingController extends Controller
             $oldPrice = $detail->price;
             $priceDiff = $newPrice - $oldPrice;
 
-            return view('tenant.bookings.reschedule.review', compact(
+            return view('tenant.booking.reschedule.review', compact(
                 'detail', 'validated', 'newPrice', 'oldPrice', 'priceDiff'
             ));
         } catch (\Exception $e) {
