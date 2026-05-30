@@ -18,7 +18,12 @@ return new class extends Migration
             $table->unsignedInteger('quantity');
             $table->unsignedInteger('price');
             $table->unsignedInteger('total');
+            $table->enum('status', ['dipinjam', 'dikembalikan', 'terlambat'])->default('dipinjam');
             $table->text('reason')->nullable();
+            $table->string('customer_name', 100);
+            $table->string('customer_phone', 20)->nullable();
+            $table->integer('duration_hours');
+            $table->date('transaction_date');
             $table->timestamps();
         });
     }

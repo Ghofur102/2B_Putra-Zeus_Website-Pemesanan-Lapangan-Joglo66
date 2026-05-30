@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('fk_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('name', 60);
-            $table->string('phone_number', 15)->nullable();
+            $table->string('phone_number', 20)->nullable();
             $table->text('address')->nullable();
             $table->string('position', 50);
             $table->integer('base_salary')->unsigned(); 

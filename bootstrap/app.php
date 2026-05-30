@@ -3,6 +3,8 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use App\Http\Middleware\SkipNgrokWarning;
+use App\Http\Middleware\CheckFieldAdmin;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -14,12 +16,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*'); //
         $middleware->alias([
-            'check.field.admin' => \App\Http\Middleware\CheckFieldAdmin::class,
+            'check.field.admin' => CheckFieldAdmin::class,
         ]);
         $middleware->redirectUsersTo(fn () => route('tenant.booking.dashboard'));
         $middleware->preventRequestForgery(except: [
             '/duitku/callback',
         ]);
+        $middleware->append(SkipNgrokWarning::class); 
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
