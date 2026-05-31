@@ -25,18 +25,19 @@
 
                 <div class="flex flex-col gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Tim / Penyewa <span class="text-red-500">*</span></label>
-                        <input type="text" name="team_name" required placeholder="Masukkan nama tim" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
+                        <label for="team_name" class="block text-sm font-semibold text-gray-700 mb-1">Nama Tim / Penyewa <span class="text-red-500">*</span></label>
+                        <input type="text" id="team_name" name="team_name" required placeholder="Masukkan nama tim" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Nomor WhatsApp</label>
-                        <input type="text" value="{{ auth()->user()->phone_number ?? auth()->user()->phone ?? '-' }}" readonly class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none">
+                        <label for="tenant_whatsapp" class="block text-sm font-semibold text-gray-700 mb-1">Nomor WhatsApp</label>
+                        <input type="text" id="tenant_whatsapp" value="{{ auth()->user()->phone_number ?? auth()->user()->phone ?? '-' }}" readonly class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none">
                         <p class="text-[11px] text-gray-400 mt-1 font-medium italic">*Nomor diambil dari data profil Anda.</p>
                     </div>
+
                     <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                        <input type="email" value="{{ auth()->user()->email }}" readonly class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none">
+                        <label for="tenant_email" class="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                        <input type="email" id="tenant_email" value="{{ auth()->user()->email }}" readonly class="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed focus:outline-none">
                         <p class="text-[11px] text-gray-400 mt-1 font-medium italic">*Email diambil dari data profil Anda.</p>
                     </div>
                 </div>
@@ -82,14 +83,14 @@
                 <div>
                     <h3 class="text-base font-bold text-gray-800 mb-4">Opsi Pembayaran</h3>
                     <div class="flex flex-col gap-3">
-                        <label class="flex items-center p-4 bg-white border border-gray-300 rounded-xl cursor-pointer hover:border-primary transition group relative">
-                            <input type="radio" name="payment_type" value="down payment" class="w-5 h-5 text-primary border-gray-300 focus:ring-primary" required>
+                        <label for="pay_dp" class="flex items-center p-4 bg-white border border-gray-300 rounded-xl cursor-pointer hover:border-primary transition group relative">
+                            <input type="radio" id="pay_dp" name="payment_type" value="down payment" class="w-5 h-5 text-primary border-gray-300 focus:ring-primary" required>
                             <span class="ml-3 font-semibold text-gray-700">DP (Uang Muka 50%)</span>
                             <span class="absolute right-4 font-bold text-primary">Rp {{ number_format($totalPrice / 2, 0, ',', '.') }}</span>
                         </label>
 
-                        <label class="flex items-center p-4 bg-white border border-gray-300 rounded-xl cursor-pointer hover:border-primary transition group relative">
-                            <input type="radio" name="payment_type" value="final payment" class="w-5 h-5 text-primary border-gray-300 focus:ring-primary" required>
+                        <label for="pay_full" class="flex items-center p-4 bg-white border border-gray-300 rounded-xl cursor-pointer hover:border-primary transition group relative">
+                            <input type="radio" id="pay_full" name="payment_type" value="final payment" class="w-5 h-5 text-primary border-gray-300 focus:ring-primary" required>
                             <span class="ml-3 font-semibold text-gray-700">Bayar Lunas</span>
                             <span class="absolute right-4 font-bold text-primary">Rp {{ number_format($totalPrice, 0, ',', '.') }}</span>
                         </label>
@@ -97,8 +98,10 @@
                 </div>
 
                 <div class="flex flex-col h-full">
-                    <h3 class="text-base font-bold text-gray-800 mb-4">Catatan Khusus <span class="text-gray-400 font-normal text-sm">(Opsional)</span></h3>
-                    <textarea name="notes" placeholder="Tuliskan catatan tambahan jika ada..." class="w-full flex-1 min-h-25 p-4 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"></textarea>
+                    <label for="booking_notes" class="block text-base font-bold text-gray-800 mb-4 cursor-pointer">
+                        Catatan Khusus <span class="text-gray-400 font-normal text-sm">(Opsional)</span>
+                    </label>
+                    <textarea id="booking_notes" name="notes" placeholder="Tuliskan catatan tambahan jika ada..." class="w-full flex-1 min-h-25 p-4 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"></textarea>
                 </div>
             </div>
         </div>

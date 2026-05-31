@@ -16,7 +16,7 @@
         <div class="flex flex-col md:flex-row gap-4 items-end">
 
             <div class="flex-1 w-full">
-                <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Pencarian Transaksi</label>
+                <label for="filterSearch" class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Pencarian Transaksi</label>
                 <div class="flex items-center w-full h-11.5 bg-gray-50 border border-gray-200 rounded-xl focus-within:bg-white focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all px-4 overflow-hidden">
                     <svg class="w-5 h-5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input type="text" id="filterSearch" placeholder="Ketik Nama Tim atau No. Referensi Duitku..."
@@ -40,17 +40,17 @@
 
                     <div class="flex flex-col gap-4">
                         <div class="w-full">
-                            <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Mulai Tanggal</label>
+                            <label for="filterStartDate" class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Mulai Tanggal</label>
                             <input type="date" id="filterStartDate" class="w-full h-11.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
                         </div>
 
                         <div class="w-full">
-                            <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Sampai Tanggal</label>
+                            <label for="filterEndDate" class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Sampai Tanggal</label>
                             <input type="date" id="filterEndDate" class="w-full h-11.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
                         </div>
 
                         <div class="w-full">
-                            <label class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Status Pembayaran</label>
+                            <label for="filterStatus" class="block text-gray-600 text-xs font-medium mb-2 uppercase tracking-wider">Status Pembayaran</label>
                             <select id="filterStatus" class="w-full h-11.5 px-4 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:bg-white focus:border-primary outline-none transition-all cursor-pointer">
                                 <option value="">Semua Status</option>
                                 @foreach ($availableStatuses as $status)
@@ -74,7 +74,7 @@
 
         @forelse($transactions as $trx)
             <div class="transaction-card bg-white rounded-xl p-4 md:p-5 shadow-sm border border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition-all"
-                data-search="{{ strtolower($trx->team_name . ' ' . ($trx->mainPayment->reference_id ?? '')) }}"
+                data-search="{{ strtolower($trx->team_name . ' ' . ($trx->mainPayment->reference_id ?? 'No Ref')) }}"
                 data-date="{{ \Carbon\Carbon::parse($trx->booking_date)->format('Y-m-d') }}"
                 data-status="{{ $trx->overallStatus }}">
 
