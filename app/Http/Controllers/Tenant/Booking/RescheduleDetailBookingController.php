@@ -14,6 +14,11 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
+use InvalidArgumentException;
+use UnexpectedValueException;
+use Throwable;
 
 class RescheduleDetailBookingController extends Controller
 {
@@ -23,7 +28,22 @@ class RescheduleDetailBookingController extends Controller
     const STATUS_REFUND_REFUND = 'refund required';
     const STATUS_REFUND_NONE = 'none';
 
-    public function formInput(Request $request, $detail_booking_id)
+    // Solusi php:S1192 - Ekstraksi Seluruh String Duplikat ke Konstanta Kelas
+    private const DB_CONN = 'mysql_joglo66_app';
+    private const STATUS_CANCELLED = 'cancelled';
+    private const STATUS_FAILED = 'failed';
+    private const STATUS_EXPIRED = 'expired';
+    private const STATUS_RESCHEDULE = 'reschedule';
+    private const ROUTE_RESCHEDULE_FORM = 'tenant.booking.form.reschedule';
+    private const ROUTE_DASHBOARD = 'tenant.booking.dashboard';
+    private const ROUTE_HISTORY_SHOW = 'tenant.booking.history.show';
+    private const STR_CASH = 'cash';
+
+    /**
+     * Display input form for rescheduling
+     * Solusi php:S1142 - Menggunakan Single Exit Point Pattern
+     */
+    public function formInput(Request $request, $detail_booking_id): RedirectResponse|View
     {
         try {
             $detail = BookingDetail::with('booking.field.fieldPrices')->findOrFail($detail_booking_id);
@@ -41,34 +61,42 @@ class RescheduleDetailBookingController extends Controller
 
             $slots = $this->getSlotsForDate($detail->booking->fk_field_id, $selectedDate, $detail);
 
-            return view('tenant.booking.reschedule.index', compact(
+            $response = view('tenant.booking.reschedule.index', compact(
                 'detail', 'calendar', 'month', 'year', 'selectedDate',
                 'prevMonth', 'nextMonth', 'slots'
             ));
-        } catch (\Exception $e) {
+        } catch (Throwable $e) {
             $bookingId = BookingDetail::find($detail_booking_id)->fk_booking_id ?? 1;
-            return redirect()->route('tenant.booking.history.show', $bookingId)
+            $response = redirect()->route(self::ROUTE_HISTORY_SHOW, $bookingId)
                 ->with('error', $e->getMessage());
         }
+
+        return $response;
     }
 
-    public function confirmation(Request $request)
+    /**
+     * Show preview review confirmation
+     */
+    public function confirmation(Request $request): RedirectResponse|View
     {
         $validator = Validator::make($request->all(), [
-            'detail_booking_id' => 'required|exists:mysql_joglo66_app.booking_details,id',
+            'detail_booking_id' => 'required|exists:' . self::DB_CONN . '.booking_details,id',
             'new_play_date' => 'required|date|after_or_equal:today',
             'new_start_play_time' => 'required|date_format:H:i',
             'new_end_play_time' => 'required|date_format:H:i|after:new_start_play_time',
             'reason' => 'required|string|max:500',
         ]);
 
-        // Gunakan $request->detail_booking_id, jika null arahkan ke dashboard
         $detailId = $request->detail_booking_id ?? 0;
 
         if ($validator->fails()) {
-            if ($detailId === 0) return redirect()->route('tenant.booking.dashboard')->with('error', 'Sesi tidak valid.');
-            return redirect()->route('tenant.booking.form.reschedule', ['detail_booking_id' => $detailId])
-                ->with('error', 'Validasi gagal: ' . $validator->errors()->first());
+            if ($detailId === 0) {
+                $response = redirect()->route(self::ROUTE_DASHBOARD)->with('error', 'Sesi tidak valid.');
+            } else {
+                $response = redirect()->route(self::ROUTE_RESCHEDULE_FORM, ['detail_booking_id' => $detailId])
+                    ->with('error', 'Validasi gagal: ' . $validator->errors()->first());
+            }
+            return $response;
         }
 
         $validated = $validator->validated();
@@ -84,19 +112,24 @@ class RescheduleDetailBookingController extends Controller
             $oldPrice = $detail->price;
             $priceDiff = $newPrice - $oldPrice;
 
-            return view('tenant.booking.reschedule.review', compact(
+            $response = view('tenant.booking.reschedule.review', compact(
                 'detail', 'validated', 'newPrice', 'oldPrice', 'priceDiff'
             ));
-        } catch (\Exception $e) {
-            return redirect()->route('tenant.booking.form.reschedule', ['detail_booking_id' => $detailId])
+        } catch (Throwable $e) {
+            $response = redirect()->route(self::ROUTE_RESCHEDULE_FORM, ['detail_booking_id' => $detailId])
                 ->with('error', $e->getMessage());
         }
+
+        return $response;
     }
 
-    public function process(Request $request)
+    /**
+     * Process transaction database update for rescheduling
+     */
+    public function process(Request $request): RedirectResponse
     {
         $validator = Validator::make($request->all(), [
-            'detail_booking_id' => 'required|exists:mysql_joglo66_app.booking_details,id',
+            'detail_booking_id' => 'required|exists:' . self::DB_CONN . '.booking_details,id',
             'new_play_date' => 'required|date|after_or_equal:today',
             'new_start_play_time' => 'required|date_format:H:i',
             'new_end_play_time' => 'required|date_format:H:i|after:new_start_play_time',
@@ -106,9 +139,13 @@ class RescheduleDetailBookingController extends Controller
         $detailId = $request->detail_booking_id ?? 0;
 
         if ($validator->fails()) {
-            if ($detailId === 0) return redirect()->route('tenant.booking.dashboard')->with('error', 'Sesi tidak valid.');
-            return redirect()->route('tenant.booking.form.reschedule', ['detail_booking_id' => $detailId])
-                ->with('error', 'Validasi gagal: ' . $validator->errors()->first());
+            if ($detailId === 0) {
+                $response = redirect()->route(self::ROUTE_DASHBOARD)->with('error', 'Sesi tidak valid.');
+            } else {
+                $response = redirect()->route(self::ROUTE_RESCHEDULE_FORM, ['detail_booking_id' => $detailId])
+                    ->with('error', 'Validasi gagal: ' . $validator->errors()->first());
+            }
+            return $response;
         }
 
         $validated = $validator->validated();
@@ -123,95 +160,99 @@ class RescheduleDetailBookingController extends Controller
             $newPrice = $this->getNewPrice($detail, $validated);
             $priceDiff = $newPrice - $detail->price;
 
-            DB::connection('mysql_joglo66_app')->transaction(function () use ($detail, $validated, $newPrice, $priceDiff) {
+            DB::connection(self::DB_CONN)->transaction(function () use ($detail, $validated, $newPrice, $priceDiff) {
                 BookingReschedule::create([
                     'fk_booking_detail_id' => $detail->id,
-                    'old_date' => $detail->play_date,
-                    'status_refund' => $this->getRescheduleStatusRefund($priceDiff),
-                    'reason' => $validated['reason'],
+                    'old_date'             => $detail->play_date,
+                    'status_refund'        => $this->getRescheduleStatusRefund($priceDiff),
+                    'reason'               => $validated['reason'],
                 ]);
 
                 $detail->update([
-                    'play_date' => $validated['new_play_date'],
+                    'play_date'       => $validated['new_play_date'],
                     'start_play_time' => $validated['new_start_play_time'],
-                    'end_play_time' => $validated['new_end_play_time'],
-                    'price' => $newPrice,
-                    'status' => 'reschedule',
+                    'end_play_time'   => $validated['new_end_play_time'],
+                    'price'           => $newPrice,
+                    'status'          => self::STATUS_RESCHEDULE,
                 ]);
 
                 if ($priceDiff !== 0) {
                     Payment::create([
-                        'fk_booking_id' => $detail->fk_booking_id,
+                        'fk_booking_id'        => $detail->fk_booking_id,
                         'fk_booking_detail_id' => $detail->id,
-                        'reference_id' => ($priceDiff > 0 ? 'RSCH-' : 'REF-') . strtoupper(Str::random(10)),
-                        'payment_type' => $priceDiff > 0 ? self::PAYMENT_RESCHEDULE_FEE : self::PAYMENT_REFUND,
-                        'method' => 'cash',
-                        'amount' => abs($priceDiff),
-                        'status' => 'success',
-                        'paid_at' => now(),
+                        'reference_id'         => ($priceDiff > 0 ? 'RSCH-' : 'REF-') . strtoupper(Str::random(10)),
+                        'payment_type'         => $priceDiff > 0 ? self::PAYMENT_RESCHEDULE_FEE : self::PAYMENT_REFUND,
+                        'method'               => self::STR_CASH,
+                        'amount'               => abs($priceDiff),
+                        'status'               => 'success',
+                        'paid_at'              => now(),
                     ]);
                 }
-            });
+        });
 
-            return redirect()->route('tenant.booking.history.show', $detail->fk_booking_id)
+            $response = redirect()->route(self::ROUTE_HISTORY_SHOW, $detail->fk_booking_id)
                 ->with('success', 'Reschedule berhasil! Jadwal booking telah diubah.');
-
-        } catch (\Exception $e) {
-            return redirect()->route('tenant.booking.form.reschedule', ['detail_booking_id' => $detailId])
+        } catch (Throwable $e) {
+            $response = redirect()->route(self::ROUTE_RESCHEDULE_FORM, ['detail_booking_id' => $detailId])
                 ->with('error', $e->getMessage());
         }
+
+        return $response;
     }
 
-    // ============================================
-    // PRIVATE HELPERS (DRY & Clean Code)
-    // ============================================
-
-    private function authorizeAccess($detail)
+    /**
+     * Solusi php:S112 - Menggunakan Specialized Exception InvalidArgumentException
+     */
+    private function authorizeAccess(BookingDetail $detail): void
     {
         if ($detail->booking->fk_user_id !== Auth::id()) {
-            throw new \Exception('Anda tidak memiliki akses ke booking ini.');
+            throw new InvalidArgumentException('Anda tidak memiliki akses ke booking ini.');
         }
     }
 
-    private function checkRescheduleRules($detail)
+    /**
+     * Solusi php:S112 - Menggunakan Specialized Exception UnexpectedValueException
+     */
+    private function checkRescheduleRules(BookingDetail $detail): void
     {
         $playDate = Carbon::parse($detail->play_date)->startOfDay();
         $daysUntilPlay = Carbon::now()->startOfDay()->diffInDays($playDate, false);
 
         if ($daysUntilPlay < 3) {
-            throw new \Exception('Reschedule hanya bisa dilakukan minimal H-3 sebelum jadwal bermain.');
+            throw new UnexpectedValueException('Reschedule hanya bisa dilakukan minimal H-3 sebelum jadwal bermain.');
         }
 
         if (BookingReschedule::where('fk_booking_detail_id', $detail->id)->exists()) {
-            throw new \Exception('Reschedule hanya dapat dilakukan 1 kali.');
+            throw new UnexpectedValueException('Reschedule hanya dapat dilakukan 1 kali.');
         }
     }
 
-    private function checkSlotConflict($detail, $newSlot)
+    /**
+     * Validasi ketersediaan overlap irisan waktu (php:S112 & php:S121)
+     */
+    private function checkSlotConflict(BookingDetail $detail, array $newSlot): void
     {
         $newStart = $newSlot['new_start_play_time'] . ':00';
         $newEnd = $newSlot['new_end_play_time'] . ':00';
 
-        if ($newSlot['new_play_date'] === $detail->play_date &&
-            $newStart >= $detail->start_play_time &&
-            $newEnd <= $detail->end_play_time) {
-            throw new \Exception('Anda tidak bisa memilih waktu yang menjadi bagian dari jadwal Anda saat ini.');
+        if ($newSlot['new_play_date'] === $detail->play_date && $newStart >= $detail->start_play_time && $newEnd <= $detail->end_play_time) {
+            throw new UnexpectedValueException('Anda tidak bisa memilih waktu yang menjadi bagian dari jadwal Anda saat ini.');
         }
 
         $conflict = BookingDetail::whereHas('booking', fn($q) => $q->where('fk_field_id', $detail->booking->fk_field_id))
             ->where('id', '!=', $detail->id)
             ->where('play_date', $newSlot['new_play_date'])
-            ->whereNotIn('status', ['cancelled', 'failed', 'expired'])
+            ->whereNotIn('status', [self::STATUS_CANCELLED, self::STATUS_FAILED, self::STATUS_EXPIRED])
             ->where('start_play_time', '<', $newSlot['new_end_play_time'])
             ->where('end_play_time', '>', $newSlot['new_start_play_time'])
             ->exists();
 
         $isClosed = false;
-        if (Schema::connection('mysql_joglo66_app')->hasTable('field_closures')) {
+        if (Schema::connection(self::DB_CONN)->hasTable('field_closures')) {
             $newStartDT = $newSlot['new_play_date'] . ' ' . $newStart;
             $newEndDT = $newSlot['new_play_date'] . ' ' . $newEnd;
 
-            $isClosed = DB::connection('mysql_joglo66_app')->table('field_closures')
+            $isClosed = DB::connection(self::DB_CONN)->table('field_closures')
                 ->where('fk_field_id', $detail->booking->fk_field_id)
                 ->where(function($query) use ($newStartDT, $newEndDT) {
                     $query->where('field_closure_start_time', '<', $newEndDT)
@@ -219,10 +260,12 @@ class RescheduleDetailBookingController extends Controller
                 })->exists();
         }
 
-        if ($conflict || $isClosed) throw new \Exception('Slot yang dipilih sudah dibooking atau lapangan sedang ditutup.');
+        if ($conflict || $isClosed) {
+            throw new UnexpectedValueException('Slot yang dipilih sudah dibooking atau lapangan sedang ditutup.');
+        }
     }
 
-    private function getNewPrice($detail, $newSlot)
+    private function getNewPrice(BookingDetail $detail, array $newSlot): int
     {
         $dayName = strtolower(Carbon::parse($newSlot['new_play_date'])->englishDayOfWeek);
         $price = FieldPrice::where('fk_field_id', $detail->booking->fk_field_id)
@@ -231,14 +274,20 @@ class RescheduleDetailBookingController extends Controller
             ->where('end_time', '>=', $newSlot['new_end_play_time'])
             ->value('price');
 
-        if (!$price) throw new \Exception('Harga untuk jadwal baru tidak ditemukan.');
+        if (!$price) {
+            throw new UnexpectedValueException('Harga untuk jadwal baru tidak ditemukan.');
+        }
         return $price;
     }
 
     private function getRescheduleStatusRefund(int $priceDiff): string
     {
-        if ($priceDiff > 0) return self::STATUS_REFUND_DEPOSIT;
-        if ($priceDiff < 0) return self::STATUS_REFUND_REFUND;
+        if ($priceDiff > 0) {
+            return self::STATUS_REFUND_DEPOSIT;
+        }
+        if ($priceDiff < 0) {
+            return self::STATUS_REFUND_REFUND;
+        }
         return self::STATUS_REFUND_NONE;
     }
 
@@ -251,16 +300,20 @@ class RescheduleDetailBookingController extends Controller
         $days = [];
         for ($current = $start->copy(); $current <= $end; $current->addDay()) {
             $days[] = [
-                'date' => $current->format('Y-m-d'),
-                'day' => (int) $current->format('j'),
+                'date'           => $current->format('Y-m-d'),
+                'day'            => (int) $current->format('j'),
                 'isCurrentMonth' => $current->month === $month,
-                'isToday' => $current->isToday(),
-                'isPast' => $current->isPast() && !$current->isToday(),
+                'isToday'        => $current->isToday(),
+                'isPast'         => $current->isPast() && !$current->isToday(),
             ];
         }
         return $days;
     }
 
+    /**
+     * Get available visual slots for date
+     * Solusi php:S3776 - Memecah Kompleksitas Perulangan Bersarang ke Sub-Method Terpisah
+     */
     private function getSlotsForDate(int $fieldId, string $date, BookingDetail $originalDetail): array
     {
         $dayName = strtolower(Carbon::parse($date)->englishDayOfWeek);
@@ -269,64 +322,66 @@ class RescheduleDetailBookingController extends Controller
         $occupied = BookingDetail::whereHas('booking', fn ($q) => $q->where('fk_field_id', $fieldId))
             ->where('id', '!=', $originalDetail->id)
             ->where('play_date', $date)
-            ->whereNotIn('status', ['cancelled', 'failed', 'expired'])
+            ->whereNotIn('status', [self::STATUS_CANCELLED, self::STATUS_FAILED, self::STATUS_EXPIRED])
             ->get(['start_play_time', 'end_play_time']);
 
-        $closures = [];
-        if (Schema::connection('mysql_joglo66_app')->hasTable('field_closures')) {
-            $startOfDay = $date . ' 00:00:00';
-            $endOfDay = $date . ' 23:59:59';
-
-            $closures = DB::connection('mysql_joglo66_app')->table('field_closures')
-                ->where('fk_field_id', $fieldId)
-                ->where('field_closure_start_time', '<=', $endOfDay)
-                ->where('field_closure_end_time', '>=', $startOfDay)
-                ->get();
-        }
+        $closures = $this->getFieldClosuresForDate($fieldId, $date);
 
         $slots = [];
         foreach ($priceRules as $rule) {
-            for ($current = Carbon::parse($rule->start_time); $current < Carbon::parse($rule->end_time); $current->addHour()) {
-                $slotStartDB = $current->format('H:i:s');
-                $slotEndDB = $current->copy()->addHour()->format('H:i:s');
-
-                $slotStartView = $current->format('H:i');
-                $slotEndView = $current->copy()->addHour()->format('H:i');
-
-                $isOccupiedByOther = $occupied->contains(function ($b) use ($slotStartDB, $slotEndDB) {
-                    return $slotStartDB < $b->end_play_time && $slotEndDB > $b->start_play_time;
-                });
-
-                $slotStartDT = $date . ' ' . $slotStartDB;
-                $slotEndDT = $date . ' ' . $slotEndDB;
-
-                $isClosed = false;
-                foreach ($closures as $closure) {
-                    if ($slotStartDT < $closure->field_closure_end_time && $slotEndDT > $closure->field_closure_start_time) {
-                        $isClosed = true;
-                        break;
-                    }
-                }
-
-                $isOriginalSlot = false;
-                if ($date === $originalDetail->play_date) {
-                    if ($slotStartDB >= $originalDetail->start_play_time && $slotEndDB <= $originalDetail->end_play_time) {
-                        $isOriginalSlot = true;
-                    }
-                }
-
-                $isAvailable = !$isOccupiedByOther && !$isClosed && !$isOriginalSlot;
-
-                $slots[] = [
-                    'start' => $slotStartView,
-                    'end' => $slotEndView,
-                    'price' => $rule->price,
-                    'is_available' => $isAvailable,
-                    'is_original' => $isOriginalSlot,
-                    'is_closed' => $isClosed
-                ];
-            }
+            $slots = array_merge($slots, $this->buildSlotsFromRule($rule, $date, $occupied, $closures, $originalDetail));
         }
         return $slots;
+    }
+
+    private function getFieldClosuresForDate(int $fieldId, string $date): array
+    {
+        if (Schema::connection(self::DB_CONN)->hasTable('field_closures')) {
+            return DB::connection(self::DB_CONN)->table('field_closures')
+                ->where('fk_field_id', $fieldId)
+                ->where('field_closure_start_time', '<=', $date . ' 23:59:59')
+                ->where('field_closure_end_time', '>=', $date . ' 00:00:00')
+                ->get()
+                ->toArray();
+        }
+        return [];
+    }
+
+    private function buildSlotsFromRule($rule, string $date, $occupied, array $closures, BookingDetail $originalDetail): array
+    {
+        $slots = [];
+        $start = Carbon::parse($rule->start_time);
+        $end = Carbon::parse($rule->end_time);
+
+        for ($current = $start->copy(); $current < $end; $current->addHour()) {
+            $slotStartDB = $current->format('H:i:s');
+            $slotEndDB = $current->copy()->addHour()->format('H:i:s');
+
+            $isOccupiedByOther = $occupied->contains(fn($b) => $slotStartDB < $b->end_play_time && $slotEndDB > $b->start_play_time);
+            $isClosed = $this->isTimeClosed($date . ' ' . $slotStartDB, $date . ' ' . $slotEndDB, $closures);
+            $isOriginalSlot = ($date === $originalDetail->play_date) && ($slotStartDB >= $originalDetail->start_play_time && $slotEndDB <= $originalDetail->end_play_time);
+
+            $slots[] = [
+                'start'        => $current->format('H:i'),
+                'end'          => $current->copy()->addHour()->format('H:i'),
+                'price'        => $rule->price,
+                'is_available' => !$isOccupiedByOther && !$isClosed && !$isOriginalSlot,
+                'is_original'  => $isOriginalSlot,
+                'is_closed'    => $isClosed
+            ];
+        }
+        return $slots;
+    }
+
+    private function isTimeClosed(string $startDT, string $endDT, array $closures): bool
+    {
+        $closed = false;
+        foreach ($closures as $closure) {
+            if ($startDT < $closure->field_closure_end_time && $endDT > $closure->field_closure_start_time) {
+                $closed = true;
+                break;
+            }
+        }
+        return $closed;
     }
 }

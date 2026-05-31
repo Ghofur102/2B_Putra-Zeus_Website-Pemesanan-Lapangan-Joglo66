@@ -9,28 +9,40 @@ use App\Models\FieldClosure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class FieldController extends Controller
 {
     use \App\Http\Controllers\Traits\FieldAccessTrait;
 
-    // GET: /api/admin/list-field (Zami)
+    private const STR_SUCCESS = 'success';
+    private const STR_ERROR = 'error';
+    private const STR_WORKER = 'worker';
+    private const STR_ACTIVE = 'active';
+    private const STR_CANCELLED = 'cancelled';
+    private const STR_FIELD_CLOSURE = 'field closure';
+    private const TIME_FORMAT = 'H:i:s';
+
+    // Solusi php:S1192 - Ekstraksi String Duplikat ke Konstanta Kelas
+    private const MSG_INTERNAL_ERROR = 'Internal server error.';
+    private const MSG_FORBIDDEN_FIELD = 'Forbidden. Anda tidak memiliki akses ke lapangan ini.';
+
     public function index(Request $request): JsonResponse
     {
-         try {
+        $status = 200;
+        try {
             $search = $request->search;
             $limit = $request->limit ?? 20;
             $user = $request->user();
 
             $query = Field::query();
 
-            // 1. FILTER BERDASARKAN HAK AKSES WORKER
-            if ($user && $user->role === 'worker') {
+            if ($user && $user->role === self::STR_WORKER) {
                 $query->whereIn('id', function($q) use ($user) {
                     $q->select('fk_field_id')
                       ->from('field_admins')
@@ -38,7 +50,6 @@ class FieldController extends Controller
                 });
             }
 
-            // Apply search filter if provided
             if ($search) {
                 $query->where(function($q) use ($search) {
                     $q->where('name', 'LIKE', "%{$search}%")
@@ -46,10 +57,8 @@ class FieldController extends Controller
                 });
             }
 
-            // Fetch fields
             $fields = $query->limit($limit)->get();
 
-            // Format response
             $fieldsList = $fields->map(function ($field) {
                 return [
                     'id' => $field->id,
@@ -58,144 +67,278 @@ class FieldController extends Controller
                     'location' => $field->location ?? 'N/A',
                     'price' => $field->price ?? 0,
                     'image' => $field->image ?? null,
-                    'status' => $field->status ?? 'active'
+                    'status' => $field->status ?? self::STR_ACTIVE
                 ];
             })->toArray();
 
-            return response()->json([
+            $data = [
                 'success' => true,
                 'message' => 'Field list retrieved successfully',
                 'data' => $fieldsList
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
+            ];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = [
                 'success' => false,
                 'message' => 'Internal server error: ' . $e->getMessage(),
                 'data' => null
-            ], 500);
+            ];
         }
+        return response()->json($data, $status);
     }
 
-    // GET: /api/admin/detail-field/{field_id} (Ghofur)
-    public function show(Request $request, $field_id)
+    public function show(Request $request, $field_id): JsonResponse
     {
-        $user = $request->user();
-
-        // 1. Validasi Hak Akses
-        if (!$this->checkFieldAccess($user, $field_id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Forbidden. Anda tidak memiliki akses ke lapangan ini.',
-                'data' => null
-            ], 403);
-        }
-
-        $field = Field::with('fieldPrices')->find($field_id);
-
-        if (!$field) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Data lapangan tidak ditemukan.',
-                'data' => null
-            ], 404);
-        }
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Detail lapangan berhasil diambil.',
-            'data' => $field
-        ], 200);
-    }
-
-    // POST/PUT: /api/admin/update-field (Huda)
-    public function update(Request $request)
-    {
-        $validated = $request->validate([
-            'id' => 'required|exists:fields,id',
-            'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|string',
-            'category' => 'sometimes|string|max:100',
-            // --- VALIDASI UNTUK FILE GAMBAR ASLI ---
-            'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
-            'pricing_rules' => 'sometimes', // Validasi mendalam akan dilakukan di bawah
-        ]);
-
-        $user = $request->user();
-
-        if (!$this->checkFieldAccess($user, $validated['id'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Forbidden. Anda tidak memiliki akses untuk mengupdate lapangan ini.',
-            ], 403);
-        }
-
-        $field = Field::findOrFail($validated['id']);
-
+        $status = 200;
         try {
-            DB::transaction(function () use ($field, $request, $validated) {
-                // 1. Update Data Teks
-                $fieldData = array_intersect_key($validated, array_flip(['name', 'description', 'category']));
+            $user = $request->user();
 
-                // 2. PROSES UPLOAD GAMBAR FISIK
-                if ($request->hasFile('image')) {
+            if (!$this->checkFieldAccess($user, $field_id)) {
+                throw new HttpException(403, self::MSG_FORBIDDEN_FIELD);
+            }
 
-                    // Cek apakah lapangan sebelumnya sudah punya gambar
-                    if (!empty($field->image_url)) {
-                        $oldImagePath = str_replace('storage/', '', $field->image_url);
+            $field = Field::with('fieldPrices')->find($field_id);
 
-                        // Jika file fisiknya benar-benar ada di dalam folder, maka hapus!
-                        if (Storage::disk('public')->exists($oldImagePath)) {
-                            Storage::disk('public')->delete($oldImagePath);
-                        }
-                    }
-                    // --------------------------------------
+            if (!$field) {
+                throw new HttpException(404, 'Data lapangan tidak ditemukan.');
+            }
 
-                    // Simpan gambar baru ke folder storage/app/public/fields
-                    $imagePath = $request->file('image')->store('fields', 'public');
-                    // Buat path relatif untuk disimpan ke database
-                    $fieldData['image_url'] = 'storage/' . $imagePath;
-                }
+            $data = [
+                'status' => self::STR_SUCCESS,
+                'message' => 'Detail lapangan berhasil diambil.',
+                'data' => $field
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage(), 'data' => null];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['status' => self::STR_ERROR, 'message' => self::MSG_INTERNAL_ERROR];
+        }
+        return response()->json($data, $status);
+    }
 
-                if (!empty($fieldData)) {
-                    $field->update($fieldData);
-                }
-
-                // 3. PROSES PRICING RULES (Decode dari JSON String)
-                if ($request->has('pricing_rules')) {
-                    $rules = is_string($request->pricing_rules)
-                        ? json_decode($request->pricing_rules, true)
-                        : $request->pricing_rules;
-
-                    if ($this->hasPricingOverlaps($rules)) {
-                        throw new \Exception("Terdapat jadwal harga yang bentrok pada hari yang sama.");
-                    }
-
-                    FieldPrice::where('fk_field_id', $field->id)->delete();
-
-                    foreach ($rules as $rule) {
-                        FieldPrice::create([
-                            'fk_field_id' => $field->id,
-                            'day_type'    => $rule['day_type'],
-                            'start_time'  => $rule['start_time'],
-                            'end_time'    => $rule['end_time'],
-                            'price'       => $rule['price'],
-                        ]);
-                    }
-                }
-            });
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Field and pricing rules updated successfully',
-                'field' => $field->fresh(['fieldPrices']),
+    // Solusi php:S3776 - Memangkas Cognitive Complexity fungsi Update dengan Sub-Fungsi Terpisah
+    public function update(Request $request): JsonResponse
+    {
+        $status = 200;
+        try {
+            $validated = $request->validate([
+                'id' => 'required|exists:fields,id',
+                'name' => 'sometimes|string|max:255',
+                'description' => 'sometimes|string',
+                'category' => 'sometimes|string|max:100',
+                'image' => 'sometimes|image|mimes:jpeg,png,jpg|max:2048',
+                'pricing_rules' => 'sometimes',
             ]);
 
-        } catch (\Exception $e) {
-             return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-            ], 400);
+            $user = $request->user();
+
+            if (!$this->checkFieldAccess($user, $validated['id'])) {
+                throw new HttpException(403, 'Forbidden. Anda tidak memiliki akses untuk mengupdate lapangan ini.');
+            }
+
+            $field = Field::findOrFail($validated['id']);
+
+            DB::transaction(function () use ($field, $request, $validated) {
+                $this->handleFieldTextAndImageUpdate($field, $request, $validated);
+                $this->handleFieldPricingRulesUpdate($field, $request);
+            });
+
+            $data = [
+                'status' => self::STR_SUCCESS,
+                'message' => 'Field and pricing rules updated successfully',
+                'field' => $field->fresh(['fieldPrices']),
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 400;
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        }
+        return response()->json($data, $status);
+    }
+
+    public function checkAvailability(Request $request, int $field_id, string $date): JsonResponse
+    {
+        $status = 200;
+        try {
+            $request->merge(['date' => $date]);
+            $request->validate(['date' => 'required|date_format:Y-m-d']);
+
+            $user = $request->user();
+
+            if (!$this->checkFieldAccess($user, $field_id)) {
+                throw new HttpException(403, self::MSG_FORBIDDEN_FIELD);
+            }
+
+            $dayName = strtolower(Carbon::parse($date)->englishDayOfWeek);
+            $fieldPrices = FieldPrice::where('fk_field_id', $field_id)->where('day_type', $dayName)->get();
+
+            $occupied = BookingDetail::whereHas('booking', function ($query) use ($field_id) {
+                    $query->where('fk_field_id', $field_id);
+                })
+                ->where('play_date', $date)
+                ->whereNotIn('status', [self::STR_CANCELLED, self::STR_FIELD_CLOSURE])
+                ->get(['start_play_time', 'end_play_time']);
+
+            $availableSlots = [];
+
+            foreach ($fieldPrices as $pricing) {
+                $start = Carbon::parse($pricing->start_time);
+                $end = Carbon::parse($pricing->end_time);
+                $current = $start->copy();
+
+                while ($current < $end) {
+                    $slotStart = $current->format(self::TIME_FORMAT);
+                    $nextHour = $current->copy()->addHour();
+                    $slotEnd = $nextHour->format(self::TIME_FORMAT);
+
+                    if ($nextHour > $end) {
+                        break;
+                    }
+
+                    $availableSlots[] = [
+                        'start' => $slotStart,
+                        'end' => $slotEnd,
+                        'price' => $pricing->price,
+                        'is_available' => !$this->isSlotOccupied($slotStart, $slotEnd, $occupied)
+                    ];
+
+                    $current->addHour();
+                }
+            }
+
+            $data = [
+                'status' => self::STR_SUCCESS,
+                'field_id' => $field_id,
+                'date' => $date,
+                'total_available_slots' => count($availableSlots),
+                'available_slots' => $availableSlots,
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['status' => self::STR_ERROR, 'message' => self::MSG_INTERNAL_ERROR];
+        }
+        return response()->json($data, $status);
+    }
+
+    public function closeField(Request $request): JsonResponse
+    {
+        $status = 200;
+        try {
+            $validatedData = $request->validate([
+                'fk_field_id' => ['required', 'integer', 'exists:fields,id'],
+                'field_closure_start_time' => ['required', Rule::date()->format('Y-m-d H:i:s')->afterOrEqual(now())],
+                'field_closure_end_time' => ['required', Rule::date()->format('Y-m-d H:i:s')->afterOrEqual(now()), 'after:field_closure_start_time'],
+                'reason' => ['required', 'string', 'max:300'],
+            ]);
+
+            $user = $request->user();
+
+            if (!$this->checkFieldAccess($user, $validatedData['fk_field_id'])) {
+                throw new HttpException(403, 'Forbidden. Anda tidak memiliki akses untuk menutup lapangan ini.');
+            }
+
+            $addDateFieldClosure = FieldClosure::create([
+                'fk_user_id' => $user->id,
+                'fk_field_id' => $validatedData['fk_field_id'],
+                'field_closure_start_time' => $validatedData['field_closure_start_time'],
+                'field_closure_end_time' => $validatedData['field_closure_end_time'],
+                'reason' => $validatedData['reason'],
+            ]);
+
+            BookingDetail::whereHas('booking', function($query) use ($validatedData) {
+                    $query->where('fk_field_id', $validatedData['fk_field_id']);
+                })
+                ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
+                    $validatedData['field_closure_end_time'],
+                    $validatedData['field_closure_start_time'],
+                ])
+                ->where('status', '!=', self::STR_CANCELLED)
+                ->update(['status' => self::STR_FIELD_CLOSURE]);
+
+            $affectedBookings = BookingDetail::whereHas('booking', function($query) use ($validatedData) {
+                    $query->where('fk_field_id', $validatedData['fk_field_id']);
+                })
+                ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
+                    $validatedData['field_closure_end_time'],
+                    $validatedData['field_closure_start_time'],
+                ])
+                ->where('status', self::STR_FIELD_CLOSURE)
+                ->with('booking.user')
+                ->get();
+
+            $data = [
+                'status' => self::STR_SUCCESS,
+                'data_field_closure' => $addDateFieldClosure,
+                'affected_bookings' => $affectedBookings,
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['status' => self::STR_ERROR, 'message' => self::MSG_INTERNAL_ERROR];
+        }
+        return response()->json($data, $status);
+    }
+
+    private function handleFieldTextAndImageUpdate(Field $field, Request $request, array $validated): void
+    {
+        $fieldData = array_intersect_key($validated, array_flip(['name', 'description', 'category']));
+
+        if ($request->hasFile('image')) {
+            $this->deleteOldFieldImage($field->image_url);
+            $imagePath = $request->file('image')->store('fields', 'public');
+            $fieldData['image_url'] = 'storage/' . $imagePath;
+        }
+
+        if (!empty($fieldData)) {
+            $field->update($fieldData);
+        }
+    }
+
+    private function deleteOldFieldImage(?string $imageUrl): void
+    {
+        if (empty($imageUrl)) {
+            return;
+        }
+
+        $oldImagePath = str_replace('storage/', '', $imageUrl);
+        if (Storage::disk('public')->exists($oldImagePath)) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
+    }
+
+    private function handleFieldPricingRulesUpdate(Field $field, Request $request): void
+    {
+        if (!$request->has('pricing_rules')) {
+            return;
+        }
+
+        $rules = is_string($request->pricing_rules)
+            ? json_decode($request->pricing_rules, true)
+            : $request->pricing_rules;
+
+        if ($this->hasPricingOverlaps($rules)) {
+            throw new HttpException(422, 'Terdapat jadwal harga yang bentrok pada hari yang sama.');
+        }
+
+        FieldPrice::where('fk_field_id', $field->id)->delete();
+
+        foreach ($rules as $rule) {
+            FieldPrice::create([
+                'fk_field_id' => $field->id,
+                'day_type'    => $rule['day_type'],
+                'start_time'  => $rule['start_time'],
+                'end_time'    => $rule['end_time'],
+                'price'       => $rule['price'],
+            ]);
         }
     }
 
@@ -203,160 +346,30 @@ class FieldController extends Controller
     {
         $groupedByDay = collect($rules)->groupBy('day_type');
 
-        foreach ($groupedByDay as $day => $dayRules) {
-            $count = count($dayRules);
-            for ($i = 0; $i < $count; $i++) {
-                for ($j = $i + 1; $j < $count; $j++) {
-                    $startA = $dayRules[$i]['start_time'];
-                    $endA = $dayRules[$i]['end_time'];
-                    $startB = $dayRules[$j]['start_time'];
-                    $endB = $dayRules[$j]['end_time'];
+        foreach ($groupedByDay as $dayRules) {
+            $sortedRules = collect($dayRules)->sortBy('start_time')->values()->all();
+            $count = count($sortedRules);
 
-                    if ($startA < $endB && $endA > $startB) {
-                        return true;
-                    }
+            for ($i = 0; $i < $count - 1; $i++) {
+                if ($sortedRules[$i]['end_time'] > $sortedRules[$i + 1]['start_time']) {
+                    return true;
                 }
             }
         }
         return false;
     }
 
-   // GET: /api/admin/check-slot-availability/{field_id}/{date} (Huda)
-    public function checkAvailability(Request $request, int $field_id, string $date)
+    private function isSlotOccupied(string $slotStart, string $slotEnd, $occupied): bool
     {
-        $request->merge(['date' => $date]);
+        foreach ($occupied as $booking) {
+            $cond1 = ($slotStart >= $booking->start_play_time && $slotStart < $booking->end_play_time);
+            $cond2 = ($slotEnd > $booking->start_play_time && $slotEnd <= $booking->end_play_time);
+            $cond3 = ($slotStart <= $booking->start_play_time && $slotEnd >= $booking->end_play_time);
 
-        $request->validate([
-            'date' => 'required|date_format:Y-m-d',
-        ]);
-
-        $user = $request->user();
-
-        if (!$this->checkFieldAccess($user, $field_id)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Forbidden. Anda tidak memiliki akses ke lapangan ini.',
-            ], 403);
-        }
-
-        $dayName = strtolower(Carbon::parse($date)->englishDayOfWeek);
-
-        $fieldPrices = FieldPrice::where('fk_field_id', $field_id)
-            ->where('day_type', $dayName)
-            ->get();
-
-        $occupied = BookingDetail::whereHas('booking', function ($query) use ($field_id) {
-                $query->where('fk_field_id', $field_id);
-            })
-            ->where('play_date', $date)
-            ->whereNotIn('status', ['cancelled', 'field closure'])
-            ->get(['start_play_time', 'end_play_time']);
-
-        $availableSlots = [];
-
-        foreach ($fieldPrices as $pricing) {
-            $start = Carbon::parse($pricing->start_time);
-            $end = Carbon::parse($pricing->end_time);
-
-            $current = $start->copy();
-
-            while ($current < $end) {
-                $slotStart = $current->format('H:i:s');
-                $nextHour = $current->copy()->addHour();
-                $slotEnd = $nextHour->format('H:i:s');
-
-                if ($nextHour > $end) break;
-
-                $isOccupied = false;
-                foreach ($occupied as $booking) {
-                    if (
-                        ($slotStart >= $booking->start_play_time && $slotStart < $booking->end_play_time) ||
-                        ($slotEnd > $booking->start_play_time && $slotEnd <= $booking->end_play_time) ||
-                        ($slotStart <= $booking->start_play_time && $slotEnd >= $booking->end_play_time)
-                    ) {
-                        $isOccupied = true;
-                        break;
-                    }
-                }
-
-                $availableSlots[] = [
-                    'start' => $slotStart,
-                    'end' => $slotEnd,
-                    'price' => $pricing->price,
-                    'is_available' => !$isOccupied
-                ];
-
-                $current->addHour();
+            if ($cond1 || $cond2 || $cond3) {
+                return true;
             }
         }
-
-        return response()->json([
-            'status' => 'success',
-            'field_id' => $field_id,
-            'date' => $date,
-            'total_available_slots' => count($availableSlots),
-            'available_slots' => $availableSlots,
-        ]);
-    }
-
-    // POST: /api/admin/close-field (Huda)
-    public function closeField(Request $request)
-    {
-         $validatedData = $request->validate([
-            'fk_field_id' => ['required', 'integer', 'exists:fields,id'],
-            'field_closure_start_time' => ['required', Rule::date()->format('Y-m-d H:i:s')->afterOrEqual(now())],
-            'field_closure_end_time' => ['required', Rule::date()->format('Y-m-d H:i:s')->afterOrEqual(now()), 'after:field_closure_start_time'],
-            'reason' => ['required', 'string', 'max:300'],
-        ]);
-
-        $user = $request->user();
-
-        // 1. Validasi Hak Akses
-        if (!$this->checkFieldAccess($user, $validatedData['fk_field_id'])) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Forbidden. Anda tidak memiliki akses untuk menutup lapangan ini.',
-            ], 403);
-        }
-
-        $addDateFieldClosure = FieldClosure::create([
-            'fk_user_id' => Auth::id(),
-            'fk_field_id' => $validatedData['fk_field_id'],
-            'field_closure_start_time' => $validatedData['field_closure_start_time'],
-            'field_closure_end_time' => $validatedData['field_closure_end_time'],
-            'reason' => $validatedData['reason'],
-        ]);
-
-        // Update overlapping bookings
-        BookingDetail::whereHas('booking', function($query) use ($validatedData) {
-                $query->where('fk_field_id', $validatedData['fk_field_id']);
-            })
-            ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
-                $validatedData['field_closure_end_time'],
-                $validatedData['field_closure_start_time'],
-            ])
-            // --- KUNCI PENCEGAHAN BUG ---
-            // Jangan ubah status yang memang sudah batal dari awal
-            ->where('status', '!=', 'cancelled')
-            // ----------------------------
-            ->update(['status' => 'field closure']);
-
-        // 2. Ambil data yang terdampak
-        $affectedBookings = BookingDetail::whereHas('booking', function($query) use ($validatedData) {
-                $query->where('fk_field_id', $validatedData['fk_field_id']);
-            })
-            ->whereRaw('TIMESTAMP(play_date, start_play_time) < ? && TIMESTAMP(play_date, end_play_time) > ?', [
-                $validatedData['field_closure_end_time'],
-                $validatedData['field_closure_start_time'],
-            ])
-            ->where('status', 'field closure') // Hanya kembalikan yang benar-benar tertimpa
-            ->with('booking.user')
-            ->get();
-
-        return response()->json([
-            'status' => 'success',
-            'data_field_closure' => $addDateFieldClosure,
-            'affected_bookings' => $affectedBookings,
-        ]);
+        return false;
     }
 }

@@ -23,7 +23,7 @@ class LaporanController extends Controller
         // 4. Ambil data pengeluaran operasional serta pengeluaran gaji karyawan dari modul terkait pada periode bulan tersebut.
         // 5. Jalankan kalkulasi matematika laba/rugi bersih (Total Pemasukan + DP Hangus - Pengeluaran Operasional - Total Gaji).
         // 6. Kembalikan response JSON 200 berupa data summary neraca keuangan bulanan terhitung otomatis.
-        
+
         return response()->json([]);
     }
 }

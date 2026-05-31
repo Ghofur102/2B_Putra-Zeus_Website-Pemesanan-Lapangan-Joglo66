@@ -22,7 +22,7 @@ class UnduhLaporanController extends Controller
         // 2. Hubungi LaporanController / query database untuk mendapatkan array ringkasan neraca laba rugi bulanan.
         // 3. Jika target data periode kosong, return response error 404 (E1).
         // 4. Kirimkan response data mentah terstruktur untuk digambar sebagai preview halaman di aplikasi frontend.
-        
+
         return response()->json([]);
     }
 

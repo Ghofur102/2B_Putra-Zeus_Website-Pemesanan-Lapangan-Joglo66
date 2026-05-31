@@ -16,11 +16,26 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class BookingController extends Controller
 {
+    private const STR_SUCCESS = 'success';
+    private const STR_ERROR = 'error';
+    private const STR_REFUND = 'refund';
+    private const STR_CANCELLED = 'cancelled';
+    private const STR_FIELD_CLOSURE = 'field closure';
+    private const STR_WORKER = 'worker';
+    private const DOWN_PAYMENT = 'down payment';
+    private const FINAL_PAYMENT = 'final payment';
+    private const RESCHEDULE_FEE = 'reschedule fee';
+    private const DATE_TIME_FORMAT = 'Y-m-d H:i:s';
+    private const CLOSED_FIELD_CANCELLED = 'closed field cancelled';
+
     public function index(Request $request): JsonResponse
     {
+        $status = 200;
         try {
             $fieldId = $request->field_id;
             $search = $request->search;
@@ -32,7 +47,7 @@ class BookingController extends Controller
 
             $query = Booking::with(['user', 'details', 'payments']);
 
-            if ($user && $user->role === 'worker') {
+            if ($user && $user->role === self::STR_WORKER) {
                 $query->whereIn('fk_field_id', function($q) use ($user) {
                     $q->select('fk_field_id')
                       ->from('field_admins')
@@ -53,203 +68,84 @@ class BookingController extends Controller
             $upcomingBookings = [];
 
             foreach ($bookings as $booking) {
-                $fieldName = Field::find($booking->fk_field_id)->name ?? 'Unknown Field';
-
-                foreach ($booking->details as $detail) {
-                    $playDate = $detail->play_date;
-
-                    if ($startDate && $endDate) {
-                        if ($playDate < $startDate || $playDate > $endDate) {
-                            continue;
-                        }
-                    } elseif ($startDate) {
-                        if ($playDate !== $startDate) {
-                            continue;
-                        }
-                    }
-
-                    $allPayments = $booking->payments->where('status', 'success');
-                    $totalBookingPaid = $allPayments->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])->sum('amount');
-                    $totalBookingRefund = $allPayments->where('payment_type', 'refund')->sum('amount');
-                    $totalDetailsCount = $booking->details->count();
-
-                    if ($totalDetailsCount == 1) {
-                        $totalPaid = $totalBookingPaid - $totalBookingRefund;
-                    } else {
-                        $specificPaid = $allPayments->where('fk_booking_detail_id', $detail->id)->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])->sum('amount');
-                        $specificRefund = $allPayments->where('fk_booking_detail_id', $detail->id)->where('payment_type', 'refund')->sum('amount');
-                        $genericPaid = $allPayments->where('fk_booking_detail_id', null)->whereIn('payment_type', ['down payment', 'final payment'])->sum('amount');
-                        
-                        $totalPaid = ($specificPaid - $specificRefund) + ($genericPaid / $totalDetailsCount);
-                    }
-
-                    $remainingPayment = $detail->price - $totalPaid;
-                    
-                    $refundAmount = $booking->payments->where('status', 'success')
-                        ->where('payment_type', 'refund')
-                        ->where('fk_booking_detail_id', $detail->id)
-                        ->sum('amount');
-
-                    $bookingItem = [
-                        'id' => $detail->id,
-                        'sort_datetime' => $playDate . ' ' . $detail->start_play_time,
-                        'date' => Carbon::parse($playDate)->format('d'),
-                        'month' => Carbon::parse($playDate)->format('M'),
-                        'year' => Carbon::parse($playDate)->format('Y'),
-                        'title' => "{$booking->team_name}",
-                        'tenant_name' => "{$booking->user->name}",
-                        'time' => Carbon::parse($detail->start_play_time)->format('H:i') . ' - ' . Carbon::parse($detail->end_play_time)->format('H:i'),
-                        'description' => $fieldName,
-                        'price' => $detail->price,
-                        'status' => $detail->status,
-                        'total_paid' => $totalPaid,
-                        'remaining_payment' => $remainingPayment,
-                        'refund_amount' => $refundAmount
-                    ];
-
-                    if ($startDate || $endDate || $search) {
-                        $todayBookings[] = $bookingItem;
-                    } else {
-                        if ($playDate === $today) {
-                            $todayBookings[] = $bookingItem;
-                        } else if ($playDate > $today) {
-                            $upcomingBookings[] = $bookingItem;
-                        }
-                    }
-                }
+                $this->processBookingDetails($booking, $startDate, $endDate, $search, $today, $todayBookings, $upcomingBookings);
             }
 
-            usort($todayBookings, function ($a, $b) {
-                return strcmp($a['sort_datetime'], $b['sort_datetime']);
-            });
-            usort($upcomingBookings, function ($a, $b) {
-                return strcmp($a['sort_datetime'], $b['sort_datetime']);
-            });
+            usort($todayBookings, fn($a, $b) => strcmp($a['sort_datetime'], $b['sort_datetime']));
+            usort($upcomingBookings, fn($a, $b) => strcmp($a['sort_datetime'], $b['sort_datetime']));
 
-            return response()->json([
+            $data = [
                 'success' => true,
                 'message' => 'Booking list retrieved successfully',
                 'data' => [
                     'today' => array_slice($todayBookings, 0, $limit),
                     'upcoming' => array_slice($upcomingBookings, 0, $limit)
                 ]
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
+            ];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = [
                 'success' => false,
                 'message' => 'Internal server error: ' . $e->getMessage(),
                 'data' => null
-            ], 500);
+            ];
         }
+        return response()->json($data, $status);
     }
 
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
-            'field_id' => ['required', 'integer', 'exists:fields,id'],
-            'team_name' => ['required', 'string', 'max:50'],
-            'booking_date' => ['required', 'date'],
-            'customer_phone' => ['nullable', 'string', 'max:20'],
-            'customer_email' => ['nullable', 'email', 'max:100'],
-            'notes' => ['nullable', 'string'],
-            'details' => ['required', 'array', 'min:1'],
-            'details.*.start_play_time' => ['required', 'date_format:H:i'],
-            'details.*.end_play_time' => ['required', 'date_format:H:i'],
-            'details.*.play_date' => ['required', 'date'],
-            'details.*.price' => ['required', 'integer', 'min:0'],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed.',
-                'errors' => $validator->errors(),
-            ], 422);
-        }
-
-        $payload = $validator->validated();
-        $userLogin = $request->user();
-
-        if ($userLogin && $userLogin->role === 'worker') {
-            $isAuthorized = DB::table('field_admins')
-                ->where('fk_user_id', $userLogin->id)
-                ->where('fk_field_id', $payload['field_id'])
-                ->exists();
-
-            if (!$isAuthorized) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Anda tidak memiliki hak akses untuk membuat pesanan di lapangan ini.',
-                ], 403);
-            }
-        }
-
-        $field = Field::find($payload['field_id']);
-        $user = User::find($payload['user_id']);
-
-        if (!$field || !$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User or field not found.',
-            ], 400);
-        }
-
-        $details = $payload['details'];
-        $totalPrice = 0;
-        $conflictDetail = null;
-
-        $todayDate = Carbon::now()->format('Y-m-d');
-        $currentTime = Carbon::now()->format('H:i');
-
-        foreach ($details as $index => $detail) {
-            if ($detail['start_play_time'] >= $detail['end_play_time']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Detail #{$index} has invalid time range.",
-                ], 400);
-            }
-
-            if ($detail['play_date'] < $todayDate) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Tidak dapat memesan untuk tanggal yang sudah lewat.",
-                ], 400);
-            }
-
-            if ($detail['play_date'] === $todayDate && $detail['start_play_time'] <= $currentTime) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Waktu main sudah terlewat untuk hari ini.",
-                ], 400);
-            }
-
-            if ($this->hasFieldConflict($payload['field_id'], $detail)) {
-                $conflictDetail = $detail;
-                break;
-            }
-
-            if (!$this->validateFieldPrice($payload['field_id'], $detail)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Price validation failed for booking detail.',
-                ], 400);
-            }
-
-            $totalPrice += $detail['price'];
-        }
-
-        if ($conflictDetail) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Field is already booked or closed for the requested time range.',
-                'conflict' => $conflictDetail,
-            ], 400);
-        }
-
+        $status = 201;
         try {
-            $booking = DB::transaction(function () use ($payload, $details, &$totalPrice) {
+            $validator = Validator::make($request->all(), [
+                'user_id' => ['required', 'integer', 'exists:users,id'],
+                'field_id' => ['required', 'integer', 'exists:fields,id'],
+                'team_name' => ['required', 'string', 'max:50'],
+                'booking_date' => ['required', 'date'],
+                'customer_phone' => ['nullable', 'string', 'max:20'],
+                'customer_email' => ['nullable', 'email', 'max:100'],
+                'notes' => ['nullable', 'string'],
+                'details' => ['required', 'array', 'min:1'],
+                'details.*.start_play_time' => ['required', 'date_format:H:i'],
+                'details.*.end_play_time' => ['required', 'date_format:H:i'],
+                'details.*.play_date' => ['required', 'date'],
+                'details.*.price' => ['required', 'integer', 'min:0'],
+            ]);
+
+            if ($validator->fails()) {
+                $status = 422;
+                $data = [
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors' => $validator->errors(),
+                ];
+                return response()->json($data, $status);
+            }
+
+            $payload = $validator->validated();
+            $userLogin = $request->user();
+
+            if ($userLogin && $userLogin->role === self::STR_WORKER) {
+                $isAuthorized = DB::table('field_admins')
+                    ->where('fk_user_id', $userLogin->id)
+                    ->where('fk_field_id', $payload['field_id'])
+                    ->exists();
+
+                if (!$isAuthorized) {
+                    throw new HttpException(403, 'Anda tidak memiliki hak akses untuk membuat pesanan di lapangan ini.');
+                }
+            }
+
+            $field = Field::find($payload['field_id']);
+            $user = User::find($payload['user_id']);
+
+            if (!$field || !$user) {
+                throw new HttpException(400, 'User or field not found.');
+            }
+
+            $totalPrice = $this->processAndValidateDetails($payload['field_id'], $payload['details']);
+
+            $booking = DB::transaction(function () use ($payload) {
                 $booking = Booking::create([
                     'fk_user_id' => $payload['user_id'],
                     'fk_field_id' => $payload['field_id'],
@@ -260,7 +156,7 @@ class BookingController extends Controller
                     'notes' => $payload['notes'] ?? null,
                 ]);
 
-                foreach ($details as $detail) {
+                foreach ($payload['details'] as $detail) {
                     BookingDetail::create([
                         'fk_booking_id' => $booking->id,
                         'start_play_time' => $detail['start_play_time'],
@@ -273,170 +169,162 @@ class BookingController extends Controller
 
                 return $booking;
             });
-        } catch (\Exception $exception) {
-            return response()->json([
+
+            $data = [
+                'success' => true,
+                'message' => 'Booking created successfully.',
+                'data' => [
+                    'booking_id' => $booking->id,
+                    'total_price' => $totalPrice,
+                ],
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['success' => false, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = [
                 'success' => false,
                 'message' => 'Failed to create booking. Please try again.',
-                'error' => $exception->getMessage(),
-            ], 500);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Booking created successfully.',
-            'data' => [
-                'booking_id' => $booking->id,
-                'total_price' => $totalPrice,
-            ],
-        ], 201);
-    }
-
-    public function show(Request $request, $detail_booking_id)
-    {
-        $user = $request->user();
-        $detail = BookingDetail::with(['booking.field', 'booking.user', 'booking.payments', 'booking.details'])->find($detail_booking_id);
-
-        if (!$detail) {
-            return response()->json(['status' => 'error', 'message' => 'Booking detail not found.'], 404);
-        }
-
-        if ($user && $user->role === 'worker') {
-            $isAuthorized = DB::table('field_admins')->where('fk_user_id', $user->id)->where('fk_field_id', $detail->booking->fk_field_id)->exists();
-            if (!$isAuthorized) return response()->json(['status' => 'error', 'message' => 'Unauthorized.'], 403);
-        }
-
-        $start = Carbon::parse($detail->start_play_time);
-        $end = Carbon::parse($detail->end_play_time);
-        $duration = max(1, $start->diffInHours($end));
-
-        $allPayments = $detail->booking->payments->where('status', 'success');
-        $totalBookingPaid = $allPayments->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])->sum('amount');
-        $totalBookingRefund = $allPayments->where('payment_type', 'refund')->sum('amount');
-        $totalDetailsCount = $detail->booking->details->count();
-
-        $sessions = $detail->booking->details->map(function ($item) use ($allPayments, $totalBookingPaid, $totalBookingRefund, $totalDetailsCount) {
-            if ($totalDetailsCount == 1) {
-                $sessionPaid = $totalBookingPaid - $totalBookingRefund;
-            } else {
-                $specificPaid = $allPayments->where('fk_booking_detail_id', $item->id)->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])->sum('amount');
-                $specificRefund = $allPayments->where('fk_booking_detail_id', $item->id)->where('payment_type', 'refund')->sum('amount');
-                $genericPaid = $allPayments->where('fk_booking_detail_id', null)->whereIn('payment_type', ['down payment', 'final payment'])->sum('amount');
-                
-                $sessionPaid = ($specificPaid - $specificRefund) + ($genericPaid / $totalDetailsCount);
-            }
-
-            return [
-                'id' => $item->id,
-                'play_date' => Carbon::parse($item->play_date)->format('d M Y'),
-                'start_time' => Carbon::parse($item->start_play_time)->format('H:i'),
-                'end_time' => Carbon::parse($item->end_play_time)->format('H:i'),
-                'price' => (int)$item->price,
-                'status' => $item->status,
-                'total_paid' => (int)$sessionPaid,
-                'remaining_payment' => (int)($item->price - $sessionPaid),
-                'refund_amount' => (int)$allPayments->where('payment_type', 'refund')->where('fk_booking_detail_id', $item->id)->sum('amount')
+                'error' => $e->getMessage(),
             ];
-        });
-
-        // 1. Sisipkan Field Closures Secara Langsung Disini
-        $closures = DB::table('field_closures')
-            ->where('fk_field_id', $detail->booking->fk_field_id)
-            ->get(['field_closure_start_time', 'field_closure_end_time']);
-
-        $responseData = [
-            'booking_id' => $detail->booking->id,
-            'user_info' => [
-                'name' => $detail->booking->team_name ?? 'Guest',
-                'email' => $detail->booking->customer_email ?? '-',
-                'phone' => $detail->booking->customer_phone ?? '-',
-                'team_name' => $detail->booking->team_name ?? '-',
-                'notes' => $detail->booking->notes ?? '-',
-            ],
-            'field_info' => [
-                'id' => $detail->booking->fk_field_id,
-                'name' => $detail->booking->field->name ?? 'Unknown Field',
-                'category' => $detail->booking->field->category ?? 'Unknown Category',
-                'image_url' => $detail->booking->field->image_url,
-            ],
-            'service_info' => [
-                'duration' => $duration,
-                'price_per_hour' => $detail->price / $duration,
-                'total_price' => (int)$detail->booking->details->sum('price'),
-                'total_down_payment' => (int)($totalBookingPaid - $totalBookingRefund),
-            ],
-            'payment_details' => [
-                'total_price' => (int)$detail->booking->details->sum('price'),
-                'total_paid' => (int)($totalBookingPaid - $totalBookingRefund),
-                'payment_method' => $detail->booking->payments->last()->method ?? '-',
-            ],
-            'sessions' => $sessions,
-            'field_closures' => $closures // Ditambahkan!
-        ];
-
-        return response()->json(['status' => 'success', 'data' => $responseData], 200);
+        }
+        return response()->json($data, $status);
     }
 
-    public function reschedule(Request $request, $detail_booking_id)
+    public function show(Request $request, $detail_booking_id): JsonResponse
     {
-        $request->validate([
-            'new_play_date' => 'required|date',
-            'new_start_time' => 'required|date_format:H:i',
-            'new_end_time' => 'required|date_format:H:i|after:new_start_time',
-            'reason' => 'required|string',
-            'fk_field_closure_id' => 'nullable|integer',
-            'new_price' => 'nullable|integer|min:0',
-        ]);
-
-        $detail = BookingDetail::find($detail_booking_id);
-
-        if (!$detail) {
-            return response()->json(['status' => 'error', 'message' => 'Data booking tidak ditemukan.'], 404);
-        }
-
-        $isFromClosure = strtolower($detail->status) === 'field closure';
-
-        if (!$isFromClosure) {
-            $playDate = Carbon::parse($detail->play_date)->startOfDay();
-            $today = Carbon::now()->startOfDay();
-            $diffDays = $today->diffInDays($playDate, false);
-
-            if ($diffDays < 3) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Reschedule ditolak: Jadwal main kurang dari H-3.'
-                ], 400);
-            }
-        }
-
-        // 2. Format Waktu Ketat
-        $startFormatted = Carbon::parse($request->new_play_date . ' ' . $request->new_start_time)->format('Y-m-d H:i:s');
-        $endFormatted = Carbon::parse($request->new_play_date . ' ' . $request->new_end_time)->format('Y-m-d H:i:s');
-
-        // 3. Validasi Irisan Waktu Ketat (Overlap Range Formula: StartA < EndB AND EndA > StartB)
-        $isClosed = DB::table('field_closures')
-            ->where('fk_field_id', $detail->booking->fk_field_id)
-            ->where('field_closure_start_time', '<', $endFormatted)
-            ->where('field_closure_end_time', '>', $startFormatted)
-            ->exists();
-
-        if ($isClosed) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Reschedule ditolak: Lapangan sedang ditutup operasional (Field Closure) pada slot waktu pilihan Anda.'
-            ], 400);
-        }
-
+        $status = 200;
         try {
-            DB::transaction(function () use ($detail, $request, $isFromClosure) {
+            $user = $request->user();
+            $detail = BookingDetail::with(['booking.field', 'booking.user', 'booking.payments', 'booking.details'])->find($detail_booking_id);
+
+            if (!$detail) {
+                throw new HttpException(404, 'Booking detail not found.');
+            }
+
+            if ($user && $user->role === self::STR_WORKER) {
+                $isAuthorized = DB::table('field_admins')->where('fk_user_id', $user->id)->where('fk_field_id', $detail->booking->fk_field_id)->exists();
+                if (!$isAuthorized) {
+                    throw new HttpException(403, 'Unauthorized.');
+                }
+            }
+
+            $start = Carbon::parse($detail->start_play_time);
+            $end = Carbon::parse($detail->end_play_time);
+            $duration = max(1, $start->diffInHours($end));
+
+            $allPayments = $detail->booking->payments->where('status', self::STR_SUCCESS);
+            $totalBookingPaid = $allPayments->whereIn('payment_type', [self::DOWN_PAYMENT, self::FINAL_PAYMENT, self::RESCHEDULE_FEE])->sum('amount');
+            $totalBookingRefund = $allPayments->where('payment_type', self::STR_REFUND)->sum('amount');
+
+            // PERBAIKAN DI SINI: Menambahkan $detail ke dalam statement 'use'
+            $sessions = $detail->booking->details->map(function ($item) use ($allPayments, $detail) {
+                $sessionPaid = $this->calculateTotalPaidForDetail($detail->booking, $item);
+
+                return [
+                    'id' => $item->id,
+                    'play_date' => Carbon::parse($item->play_date)->format('d M Y'),
+                    'start_time' => Carbon::parse($item->start_play_time)->format('H:i'),
+                    'end_time' => Carbon::parse($item->end_play_time)->format('H:i'),
+                    'price' => (int)$item->price,
+                    'status' => $item->status,
+                    'total_paid' => (int)$sessionPaid,
+                    'remaining_payment' => (int)($item->price - $sessionPaid),
+                    'refund_amount' => (int)$allPayments->where('payment_type', self::STR_REFUND)->where('fk_booking_detail_id', $item->id)->sum('amount')
+                ];
+            });
+
+            $closures = DB::table('field_closures')
+                ->where('fk_field_id', $detail->booking->fk_field_id)
+                ->get(['field_closure_start_time', 'field_closure_end_time']);
+
+            $responseData = [
+                'booking_id' => $detail->booking->id,
+                'user_info' => [
+                    'name' => $detail->booking->team_name ?? 'Guest',
+                    'email' => $detail->booking->customer_email ?? '-',
+                    'phone' => $detail->booking->customer_phone ?? '-',
+                    'team_name' => $detail->booking->team_name ?? '-',
+                    'notes' => $detail->booking->notes ?? '-',
+                ],
+                'field_info' => [
+                    'id' => $detail->booking->fk_field_id,
+                    'name' => $detail->booking->field->name ?? 'Unknown Field',
+                    'category' => $detail->booking->field->category ?? 'Unknown Category',
+                    'image_url' => $detail->booking->field->image_url,
+                ],
+                'service_info' => [
+                    'duration' => $duration,
+                    'price_per_hour' => $detail->price / $duration,
+                    'total_price' => (int)$detail->booking->details->sum('price'),
+                    'total_down_payment' => (int)($totalBookingPaid - $totalBookingRefund),
+                ],
+                'payment_details' => [
+                    'total_price' => (int)$detail->booking->details->sum('price'),
+                    'total_paid' => (int)($totalBookingPaid - $totalBookingRefund),
+                    'payment_method' => $detail->booking->payments->last()->method ?? '-',
+                ],
+                'sessions' => $sessions,
+                'field_closures' => $closures
+            ];
+
+            $data = ['status' => self::STR_SUCCESS, 'data' => $responseData];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['status' => self::STR_ERROR, 'message' => 'Internal server error.'];
+        }
+        return response()->json($data, $status);
+    }
+
+    public function reschedule(Request $request, $detail_booking_id): JsonResponse
+    {
+        $status = 200;
+        try {
+            $request->validate([
+                'new_play_date' => 'required|date',
+                'new_start_time' => 'required|date_format:H:i',
+                'new_end_time' => 'required|date_format:H:i|after:new_start_time',
+                'reason' => 'required|string',
+                'fk_field_closure_id' => 'nullable|integer',
+                'new_price' => 'nullable|integer|min:0',
+            ]);
+
+            $detail = BookingDetail::find($detail_booking_id);
+
+            if (!$detail) {
+                throw new HttpException(404, 'Data booking tidak ditemukan.');
+            }
+
+            $this->validateRescheduleTimeline($detail);
+
+            $startFormatted = Carbon::parse($request->new_play_date . ' ' . $request->new_start_time)->format(self::DATE_TIME_FORMAT);
+            $endFormatted = Carbon::parse($request->new_play_date . ' ' . $request->new_end_time)->format(self::DATE_TIME_FORMAT);
+
+            $isClosed = DB::table('field_closures')
+                ->where('fk_field_id', $detail->booking->fk_field_id)
+                ->where('field_closure_start_time', '<', $endFormatted)
+                ->where('field_closure_end_time', '>', $startFormatted)
+                ->exists();
+
+            if ($isClosed) {
+                throw new HttpException(400, 'Reschedule ditolak: Lapangan sedang ditutup operasional (Field Closure) pada slot waktu pilihan Anda.');
+            }
+
+            DB::transaction(function () use ($detail, $request) {
                 BookingReschedule::create([
                     'fk_booking_detail_id' => $detail->id,
                     'fk_field_closure_id' => $request->fk_field_closure_id,
-                    'old_date' => $detail->play_date, 
+                    'old_date' => $detail->play_date,
                     'reason' => $request->reason,
                 ]);
 
+                $isFromClosure = strtolower($detail->status) === self::STR_FIELD_CLOSURE;
                 $updateData = [
-                    'play_date' => $request->new_play_date, 
+                    'play_date' => $request->new_play_date,
                     'start_play_time' => $request->new_start_time,
                     'end_play_time' => $request->new_end_time,
                     'status' => $isFromClosure ? 'closed field reschedule' : 'reschedule',
@@ -449,63 +337,48 @@ class BookingController extends Controller
                 $detail->update($updateData);
             });
 
-            return response()->json([
-                'status' => 'success',
+            $data = [
+                'status' => self::STR_SUCCESS,
                 'message' => 'Jadwal booking berhasil diubah.',
                 'data' => BookingDetail::find($detail_booking_id)
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = [
+                'status' => self::STR_ERROR,
                 'message' => 'Terjadi kesalahan saat mengubah jadwal: ' . $e->getMessage(),
-            ], 500);
+            ];
         }
+        return response()->json($data, $status);
     }
 
-    public function cancel(Request $request, $detail_booking_id)
+    public function cancel(Request $request, $detail_booking_id): JsonResponse
     {
-        $request->validate([
-            'reason' => 'required|string',
-            'status_refund' => 'nullable|string',
-            'fk_field_closure_id' => 'nullable|integer',
-        ]);
-
-        $detail = BookingDetail::find($detail_booking_id);
-        if (!$detail) return response()->json(['status' => 'error', 'message' => 'Data tidak ditemukan.'], 404);
-
-        $currentStatus = strtolower($detail->status);
-        if (str_contains($currentStatus, 'cancel')) {
-            return response()->json(['status' => 'error', 'message' => 'Booking ini sudah dibatalkan.'], 400);
-        }
-
-        $statusRefund = ucfirst(strtolower($request->status_refund ?? 'None'));
-        $isFromClosure = $currentStatus === 'field closure';
-
-        if (!$isFromClosure) {
-            $playDate = Carbon::parse($detail->play_date)->startOfDay();
-            $diffDays = Carbon::now()->startOfDay()->diffInDays($playDate, false);
-            if ($diffDays < 3) {
-                $statusRefund = 'None';
-            }
-        }
-
-        $refundAmount = 0;
-        if ($statusRefund !== 'None') {
-            $successfulPayments = Payment::where('fk_booking_id', $detail->fk_booking_id)
-                ->where('status', 'success')
-                ->whereIn('payment_type', ['down payment', 'final payment'])
-                ->sum('amount');
-            
-            $refunded = Payment::where('fk_booking_detail_id', $detail->id)
-                ->where('payment_type', 'refund')->sum('amount');
-
-            $netPaid = $successfulPayments - $refunded;
-            $refundAmount = ($statusRefund === 'Full') ? $netPaid : ($netPaid / 2);
-        }
-
+        $status = 200;
         try {
-            DB::transaction(function () use ($detail, $request, $statusRefund, $isFromClosure, $refundAmount) {
+            $request->validate([
+                'reason' => 'required|string',
+                'status_refund' => 'nullable|string',
+                'fk_field_closure_id' => 'nullable|integer',
+            ]);
+
+            $detail = BookingDetail::find($detail_booking_id);
+            if (!$detail) {
+                throw new HttpException(404, 'Data tidak ditemukan.');
+            }
+
+            $currentStatus = strtolower($detail->status);
+            if (str_contains($currentStatus, 'cancel')) {
+                throw new HttpException(400, 'Booking ini sudah dibatalkan.');
+            }
+
+            $statusRefund = $this->determineRefundStatus($detail, $request->status_refund ?? 'None');
+            $refundAmount = $this->calculateCancelRefund($detail, $statusRefund);
+
+            DB::transaction(function () use ($detail, $request, $statusRefund, $refundAmount) {
                 BookingCancelled::create([
                     'fk_booking_detail_id' => $detail->id,
                     'fk_field_closure_id' => $request->fk_field_closure_id,
@@ -514,8 +387,9 @@ class BookingController extends Controller
                     'status_refund' => $statusRefund,
                 ]);
 
+                $isFromClosure = strtolower($detail->status) === self::STR_FIELD_CLOSURE;
                 $detail->update([
-                    'status' => $isFromClosure ? 'closed field cancelled' : 'cancelled',
+                    'status' => $isFromClosure ? self::CLOSED_FIELD_CANCELLED : self::STR_CANCELLED,
                 ]);
 
                 if ($refundAmount > 0) {
@@ -523,26 +397,229 @@ class BookingController extends Controller
                         'fk_booking_id' => $detail->fk_booking_id,
                         'fk_booking_detail_id' => $detail->id,
                         'reference_id' => 'CNL-REF-' . strtoupper(Str::random(10)),
-                        'payment_type' => 'refund',
+                        'payment_type' => self::STR_REFUND,
                         'method' => 'cash',
                         'amount' => $refundAmount,
-                        'status' => 'success',
+                        'status' => self::STR_SUCCESS,
                         'paid_at' => now(),
                     ]);
                 }
             });
 
-            return response()->json(['status' => 'success', 'message' => 'Booking berhasil dibatalkan.'], 200);
-
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+            $data = ['status' => self::STR_SUCCESS, 'message' => 'Booking berhasil dibatalkan.'];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['status' => self::STR_ERROR, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()];
         }
+        return response()->json($data, $status);
+    }
+
+    public function closedBookings(Request $request): JsonResponse
+    {
+        $status = 200;
+        try {
+            $user = $request->user();
+
+            $query = BookingDetail::whereIn('status', [self::STR_FIELD_CLOSURE, self::CLOSED_FIELD_CANCELLED, 'closed field reschedule'])
+                ->with(['booking.user', 'booking.field'])
+                ->orderBy('play_date', 'desc')
+                ->orderBy('start_play_time');
+
+            if ($user && $user->role === self::STR_WORKER) {
+                $query->whereHas('booking', function($q) use ($user) {
+                    $q->whereIn('fk_field_id', function($subQuery) use ($user) {
+                        $subQuery->select('fk_field_id')
+                                 ->from('field_admins')
+                                 ->where('fk_user_id', $user->id);
+                    });
+                });
+            }
+
+            if ($request->has('field_id')) {
+                $query->whereHas('booking', function($q) use ($request) {
+                    $q->where('fk_field_id', $request->field_id);
+                });
+            }
+
+            if ($request->has('date')) {
+                $query->where('play_date', $request->date);
+            }
+
+            $data = [
+                'status' => self::STR_SUCCESS,
+                'closed_bookings' => $query->paginate(20),
+            ];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        }
+        return response()->json($data, $status);
+    }
+
+    public function refundOverpayment(Request $request, $detail_booking_id): JsonResponse
+    {
+        $status = 200;
+        try {
+            $detail = BookingDetail::find($detail_booking_id);
+            if (!$detail) {
+                throw new HttpException(404, 'Data sesi tidak ditemukan.');
+            }
+
+            $totalPaid = $this->calculateTotalPaidForDetail($detail->booking, $detail);
+            $overpayment = $totalPaid - $detail->price;
+
+            if ($overpayment <= 0) {
+                throw new HttpException(400, 'Tidak ada kelebihan pembayaran pada sesi ini.');
+            }
+
+            DB::transaction(function () use ($detail, $overpayment) {
+                Payment::create([
+                    'fk_booking_id' => $detail->fk_booking_id,
+                    'fk_booking_detail_id' => $detail->id,
+                    'reference_id' => 'RFD-' . strtoupper(Str::random(8)),
+                    'payment_type' => self::STR_REFUND,
+                    'method' => 'cash',
+                    'amount' => $overpayment,
+                    'status' => self::STR_SUCCESS,
+                    'paid_at' => now(),
+                ]);
+            });
+
+            $data = [
+                'status' => self::STR_SUCCESS,
+                'message' => 'Kelebihan pembayaran berhasil dikembalikan secara tunai.'
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['status' => self::STR_ERROR, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = [
+                'status' => self::STR_ERROR,
+                'message' => 'Gagal memproses pengembalian: ' . $e->getMessage()
+            ];
+        }
+        return response()->json($data, $status);
+    }
+
+    private function processBookingDetails($booking, $startDate, $endDate, $search, $today, &$todayBookings, &$upcomingBookings): void
+    {
+        $fieldName = Field::find($booking->fk_field_id)->name ?? 'Unknown Field';
+
+        foreach ($booking->details as $detail) {
+            if ($this->shouldSkipDetail($detail->play_date, $startDate, $endDate)) {
+                continue;
+            }
+
+            $bookingItem = $this->buildBookingItem($booking, $detail, $fieldName);
+
+            if ($startDate || $endDate || $search) {
+                $todayBookings[] = $bookingItem;
+            } elseif ($detail->play_date === $today) {
+                $todayBookings[] = $bookingItem;
+            } elseif ($detail->play_date > $today) {
+                $upcomingBookings[] = $bookingItem;
+            }
+        }
+    }
+
+    private function shouldSkipDetail(string $playDate, ?string $startDate, ?string $endDate): bool
+    {
+        if ($startDate && $endDate) {
+            return $playDate < $startDate || $playDate > $endDate;
+        }
+        if ($startDate) {
+            return $playDate !== $startDate;
+        }
+        return false;
+    }
+
+    private function calculateTotalPaidForDetail($booking, $detail): float
+    {
+        $allPayments = $booking->payments->where('status', self::STR_SUCCESS);
+        $totalBookingPaid = $allPayments->whereIn('payment_type', [self::DOWN_PAYMENT, self::FINAL_PAYMENT, self::RESCHEDULE_FEE])->sum('amount');
+        $totalBookingRefund = $allPayments->where('payment_type', self::STR_REFUND)->sum('amount');
+        $totalDetailsCount = $booking->details->count();
+
+        if ($totalDetailsCount == 1) {
+            return $totalBookingPaid - $totalBookingRefund;
+        }
+
+        $specificPaid = $allPayments->where('fk_booking_detail_id', $detail->id)->whereIn('payment_type', [self::DOWN_PAYMENT, self::FINAL_PAYMENT, self::RESCHEDULE_FEE])->sum('amount');
+        $specificRefund = $allPayments->where('fk_booking_detail_id', $detail->id)->where('payment_type', self::STR_REFUND)->sum('amount');
+        $genericPaid = $allPayments->where('fk_booking_detail_id', null)->whereIn('payment_type', [self::DOWN_PAYMENT, self::FINAL_PAYMENT])->sum('amount');
+
+        return ($specificPaid - $specificRefund) + ($genericPaid / $totalDetailsCount);
+    }
+
+    private function buildBookingItem($booking, $detail, string $fieldName): array
+    {
+        $totalPaid = $this->calculateTotalPaidForDetail($booking, $detail);
+        $remainingPayment = $detail->price - $totalPaid;
+
+        $refundAmount = $booking->payments->where('status', self::STR_SUCCESS)
+            ->where('payment_type', self::STR_REFUND)
+            ->where('fk_booking_detail_id', $detail->id)
+            ->sum('amount');
+
+        return [
+            'id' => $detail->id,
+            'sort_datetime' => $detail->play_date . ' ' . $detail->start_play_time,
+            'date' => Carbon::parse($detail->play_date)->format('d'),
+            'month' => Carbon::parse($detail->play_date)->format('M'),
+            'year' => Carbon::parse($detail->play_date)->format('Y'),
+            'title' => "{$booking->team_name}",
+            'tenant_name' => "{$booking->user->name}",
+            'time' => Carbon::parse($detail->start_play_time)->format('H:i') . ' - ' . Carbon::parse($detail->end_play_time)->format('H:i'),
+            'description' => $fieldName,
+            'price' => $detail->price,
+            'status' => $detail->status,
+            'total_paid' => $totalPaid,
+            'remaining_payment' => $remainingPayment,
+            'refund_amount' => $refundAmount
+        ];
+    }
+
+    private function processAndValidateDetails(int $fieldId, array $details): int
+    {
+        $totalPrice = 0;
+        $todayDate = Carbon::now()->format('Y-m-d');
+        $currentTime = Carbon::now()->format('H:i');
+
+        foreach ($details as $index => $detail) {
+            if ($detail['start_play_time'] >= $detail['end_play_time']) {
+                throw new HttpException(400, "Detail #{$index} has invalid time range.");
+            }
+
+            if ($detail['play_date'] < $todayDate) {
+                throw new HttpException(400, 'Tidak dapat memesan untuk tanggal yang sudah lewat.');
+            }
+
+            if ($detail['play_date'] === $todayDate && $detail['start_play_time'] <= $currentTime) {
+                throw new HttpException(400, 'Waktu main sudah terlewat untuk hari ini.');
+            }
+
+            if ($this->hasFieldConflict($fieldId, $detail)) {
+                throw new HttpException(400, 'Field is already booked or closed for the requested time range.');
+            }
+
+            if (!$this->validateFieldPrice($fieldId, $detail)) {
+                throw new HttpException(400, 'Price validation failed for booking detail.');
+            }
+
+            $totalPrice += $detail['price'];
+        }
+
+        return $totalPrice;
     }
 
     private function hasFieldConflict(int $fieldId, array $detail): bool
     {
-        $slotStart = Carbon::parse($detail['play_date'] . ' ' . $detail['start_play_time'])->format('Y-m-d H:i:s');
-        $slotEnd = Carbon::parse($detail['play_date'] . ' ' . $detail['end_play_time'])->format('Y-m-d H:i:s');
+        $slotStart = Carbon::parse($detail['play_date'] . ' ' . $detail['start_play_time'])->format(self::DATE_TIME_FORMAT);
+        $slotEnd = Carbon::parse($detail['play_date'] . ' ' . $detail['end_play_time'])->format(self::DATE_TIME_FORMAT);
 
         $isClosed = DB::table('field_closures')
             ->where('fk_field_id', $fieldId)
@@ -550,14 +627,16 @@ class BookingController extends Controller
             ->where('field_closure_end_time', '>', $slotStart)
             ->exists();
 
-        if ($isClosed) return true;
+        if ($isClosed) {
+            return true;
+        }
 
         return BookingDetail::query()
             ->whereHas('booking', function ($query) use ($fieldId) {
                 $query->where('fk_field_id', $fieldId);
             })
             ->where('play_date', $detail['play_date'])
-            ->whereNotIn('status', ['cancelled', 'field closure', 'closed field cancelled'])
+            ->whereNotIn('status', [self::STR_CANCELLED, self::STR_FIELD_CLOSURE, self::CLOSED_FIELD_CANCELLED])
             ->where('start_play_time', '<', $detail['end_play_time'])
             ->where('end_play_time', '>', $detail['start_play_time'])
             ->exists();
@@ -581,95 +660,47 @@ class BookingController extends Controller
         return true;
     }
 
-    public function closedBookings(Request $request)
+    private function validateRescheduleTimeline($detail): void
     {
-        $user = $request->user();
+        if (strtolower($detail->status) !== self::STR_FIELD_CLOSURE) {
+            $playDate = Carbon::parse($detail->play_date)->startOfDay();
+            $today = Carbon::now()->startOfDay();
+            $diffDays = $today->diffInDays($playDate, false);
 
-        $query = BookingDetail::whereIn('status', ['field closure', 'closed field cancelled', 'closed field reschedule'])
-            ->with(['booking.user', 'booking.field'])
-            ->orderBy('play_date', 'desc')
-            ->orderBy('start_play_time');
-
-        if ($user && $user->role === 'worker') {
-            $query->whereHas('booking', function($q) use ($user) {
-                $q->whereIn('fk_field_id', function($subQuery) use ($user) {
-                    $subQuery->select('fk_field_id')
-                             ->from('field_admins')
-                             ->where('fk_user_id', $user->id);
-                });
-            });
+            if ($diffDays < 3) {
+                throw new HttpException(400, 'Reschedule ditolak: Jadwal main kurang dari H-3.');
+            }
         }
-
-        if ($request->has('field_id')) {
-            $query->whereHas('booking', function($q) use ($request) {
-                $q->where('fk_field_id', $request->field_id);
-            });
-        }
-
-        if ($request->has('date')) {
-            $query->where('play_date', $request->date);
-        }
-
-        $closedBookings = $query->paginate(20);
-
-        return response()->json([
-            'status' => 'success',
-            'closed_bookings' => $closedBookings,
-        ]);
     }
 
-    public function refundOverpayment(Request $request, $detail_booking_id)
+    private function determineRefundStatus($detail, string $inputStatus): string
     {
-        $detail = BookingDetail::find($detail_booking_id);
-        if (!$detail) {
-            return response()->json(['status' => 'error', 'message' => 'Data sesi tidak ditemukan.'], 404);
+        $statusRefund =  ucfirst(strtolower($inputStatus));
+        if (strtolower($detail->status) !== self::STR_FIELD_CLOSURE) {
+            $playDate = Carbon::parse($detail->play_date)->startOfDay();
+            $diffDays = Carbon::now()->startOfDay()->diffInDays($playDate, false);
+            if ($diffDays < 3) {
+                return 'None';
+            }
+        }
+        return $statusRefund;
+    }
+
+    private function calculateCancelRefund($detail, string $statusRefund): float
+    {
+        if ($statusRefund === 'None') {
+            return 0;
         }
 
-        $allPayments = $detail->booking->payments->where('status', 'success');
-        $totalBookingPaid = $allPayments->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])->sum('amount');
-        $totalBookingRefund = $allPayments->where('payment_type', 'refund')->sum('amount');
-        $totalDetailsCount = $detail->booking->details->count();
+        $successfulPayments = Payment::where('fk_booking_id', $detail->fk_booking_id)
+            ->where('status', self::STR_SUCCESS)
+            ->whereIn('payment_type', [self::DOWN_PAYMENT, self::FINAL_PAYMENT])
+            ->sum('amount');
 
-        if ($totalDetailsCount == 1) {
-            $totalPaid = $totalBookingPaid - $totalBookingRefund;
-        } else {
-            $specificPaid = $allPayments->where('fk_booking_detail_id', $detail->id)->whereIn('payment_type', ['down payment', 'final payment', 'reschedule fee'])->sum('amount');
-            $specificRefund = $allPayments->where('fk_booking_detail_id', $detail->id)->where('payment_type', 'refund')->sum('amount');
-            $genericPaid = $allPayments->where('fk_booking_detail_id', null)->whereIn('payment_type', ['down payment', 'final payment'])->sum('amount');
-            
-            $totalPaid = ($specificPaid - $specificRefund) + ($genericPaid / $totalDetailsCount);
-        }
+        $refunded = Payment::where('fk_booking_detail_id', $detail->id)
+            ->where('payment_type', self::STR_REFUND)->sum('amount');
 
-        $overpayment = $totalPaid - $detail->price;
-
-        if ($overpayment <= 0) {
-            return response()->json(['status' => 'error', 'message' => 'Tidak ada kelebihan pembayaran pada sesi ini.'], 400);
-        }
-
-        try {
-            DB::transaction(function () use ($detail, $overpayment) {
-                Payment::create([
-                    'fk_booking_id' => $detail->fk_booking_id,
-                    'fk_booking_detail_id' => $detail->id,
-                    'reference_id' => 'RFD-' . strtoupper(Str::random(8)),
-                    'payment_type' => 'refund',
-                    'method' => 'cash',
-                    'amount' => $overpayment,
-                    'status' => 'success',
-                    'paid_at' => now(),
-                ]);
-            });
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Kelebihan pembayaran berhasil dikembalikan secara tunai.'
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Gagal memproses pengembalian: ' . $e->getMessage()
-            ], 500);
-        }
+        $netPaid = $successfulPayments - $refunded;
+        return ($statusRefund === 'Full') ? $netPaid : ($netPaid / 2);
     }
 }

@@ -21,7 +21,7 @@ class GajiController extends Controller
         // 2. Lakukan pengecekan ke tabel pengeluaran_gaji untuk memastikan data gaji karyawan pada periode bulan & tahun tersebut belum pernah diinput (E2).
         // 3. Jika lolos validasi, simpan data pencatatan transaksi pengeluaran gaji ke database.
         // 4. Kembalikan response sukses status 201 beserta payload log pengeluaran yang tersimpan.
-        
+
         return response()->json([]);
     }
 }

@@ -19,7 +19,7 @@ class KaryawanController extends Controller
     {
         // 1. Tarik seluruh list data master karyawan terbaru dari database (id, nama, email, role).
         // 2. Kembalikan response JSON sukses status 200 membawa data array karyawan.
-        
+
         return response()->json([]);
     }
 
@@ -37,7 +37,7 @@ class KaryawanController extends Controller
         // 3. Enkripsi password menggunakan bcrypt/hash.
         // 4. Lakukan operasi insert record karyawan baru ke tabel users dengan penentuan hak akses (role).
         // 5. Kembalikan response sukses 201 dengan muatan objek data karyawan yang berhasil disimpan.
-        
+
         return response()->json([]);
     }
 
@@ -55,7 +55,7 @@ class KaryawanController extends Controller
         // 3. Cek pengecualian email unik jika pengguna merubah alamat emailnya.
         // 4. Eksekusi perintah pembaharuan (update) record data profil beserta role/hak akses sistem.
         // 5. Kembalikan response JSON 200 tanda perubahan berhasil disimpan permanen.
-        
+
         return response()->json([]);
     }
 
@@ -72,7 +72,7 @@ class KaryawanController extends Controller
         // 2. Jika data terikat dengan integritas foreign key tabel transaksi, kembalikan response batasan 400.
         // 3. Jalankan fungsi delete data karyawan dari database.
         // 4. Kembalikan response JSON sukses status 200.
-        
+
         return response()->json([]);
     }
 }

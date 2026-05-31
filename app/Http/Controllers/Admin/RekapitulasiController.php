@@ -23,7 +23,7 @@ class RekapitulasiController extends Controller
         // 4. Kalkulasi total akumulasi nominal uang masuk yang dikelompokkan berdasarkan jenis transaksi (booking, DP, pelunasan).
         // 5. Jika data transaksi tidak ditemukan, siapkan penanganan skenario error E1.
         // 6. Kembalikan response JSON sukses 200 membawa rincian list transaksi dan total kalkulasi pemasukan harian.
-        
+
         return response()->json([]);
     }
 }

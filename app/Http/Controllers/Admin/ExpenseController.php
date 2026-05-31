@@ -28,7 +28,7 @@ class ExpenseController extends Controller
             $expenses = $query->latest('expense_date')->get()->map(function ($item) {
                 return [
                     'id' => $item->id,
-                    'title' => $item->category, 
+                    'title' => $item->category,
                     'category' => $item->category,
                     'amount' => (int)$item->amount,
                     'date' => $item->expense_date,

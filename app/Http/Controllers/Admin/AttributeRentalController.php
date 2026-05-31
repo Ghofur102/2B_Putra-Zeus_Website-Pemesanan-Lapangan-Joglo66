@@ -12,13 +12,19 @@ use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
 use Carbon\Carbon;
 use App\Http\Controllers\Traits\FieldAccessTrait;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class AttributeRentalController extends Controller
 {
     use FieldAccessTrait;
 
+    private const ACCESS_DENIED_MSG = 'Anda tidak memiliki akses ke atribut ini.';
+    private const RENTAL_NOT_FOUND_MSG = 'Data penyewaan tidak ditemukan.';
+
     public function getActiveBookings(Request $request): JsonResponse
     {
+        $status = 200;
         try {
             $user = $request->user();
             
@@ -48,45 +54,50 @@ class AttributeRentalController extends Controller
                 ];
             });
 
-            return response()->json(['success' => true, 'message' => 'Data booking aktif berhasil diambil.', 'data' => $bookings]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memuat data booking aktif.'], 500);
+            $data = ['success' => true, 'message' => 'Data booking aktif berhasil diambil.', 'data' => $bookings];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal memuat data booking aktif.'];
         }
+        return response()->json($data, $status);
     }
 
     public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'fk_booking_id' => 'required|exists:bookings,id',
-            'items' => 'required|array|min:1',
-            'items.*.fk_attribute_id' => 'required|exists:attributes,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'customer_name' => 'required|string|max:100',
-            'customer_phone' => 'nullable|string|max:20',
-            'duration_hours' => 'required|integer|min:1',
-            'transaction_date' => 'required|date',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
-        }
-
+        $status = 201;
         try {
+            $validator = Validator::make($request->all(), [
+                'fk_booking_id' => 'required|exists:bookings,id',
+                'items' => 'required|array|min:1',
+                'items.*.fk_attribute_id' => 'required|exists:attributes,id',
+                'items.*.quantity' => 'required|integer|min:1',
+                'customer_name' => 'required|string|max:100',
+                'customer_phone' => 'nullable|string|max:20',
+                'duration_hours' => 'required|integer|min:1',
+                'transaction_date' => 'required|date',
+            ]);
+
+            if ($validator->fails()) {
+                $status = 422;
+                $data = ['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()];
+                return response()->json($data, $status);
+            }
+
             $user = $request->user();
 
             foreach ($request->items as $item) {
                 $attribute = Attribute::find($item['fk_attribute_id']);
                 if (!$attribute) {
-                    return response()->json(['success' => false, 'message' => 'Atribut tidak ditemukan.'], 404);
+                    throw new HttpException(404, 'Atribut tidak ditemukan.');
                 }
                 if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                    return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses ke atribut ini.'], 403);
+                    throw new HttpException(403, self::ACCESS_DENIED_MSG);
                 }
                 if ($attribute->status === 'inactive') {
-                    return response()->json(['success' => false, 'message' => "Atribut {$attribute->name} sedang tidak tersedia."], 422);
+                    throw new HttpException(422, "Atribut {$attribute->name} sedang tidak tersedia.");
                 }
                 if ($attribute->stock < $item['quantity']) {
-                    return response()->json(['success' => false, 'message' => "Stok tidak mencukupi. Sisa stok {$attribute->name}: {$attribute->stock}"], 422);
+                    throw new HttpException(422, "Stok tidak mencukupi. Sisa stok {$attribute->name}: {$attribute->stock}");
                 }
             }
 
@@ -119,7 +130,7 @@ class AttributeRentalController extends Controller
                 return $created;
             });
 
-            return response()->json([
+            $data = [
                 'success' => true,
                 'message' => 'Transaksi penyewaan berhasil disimpan.',
                 'data' => [
@@ -128,29 +139,35 @@ class AttributeRentalController extends Controller
                     'customer_name' => $request->customer_name,
                     'transaction_date' => $request->transaction_date,
                 ]
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Sistem sedang sibuk. Silahkan coba lagi.'], 500);
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['success' => false, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Sistem sedang sibuk. Silahkan coba lagi.'];
         }
+        return response()->json($data, $status);
     }
 
     public function returnItem(Request $request, $id): JsonResponse
     {
+        $status = 200;
         try {
             $rental = BookingAttribute::find($id);
 
             if (!$rental) {
-                return response()->json(['success' => false, 'message' => 'Data penyewaan tidak ditemukan.'], 404);
+                throw new HttpException(404, self::RENTAL_NOT_FOUND_MSG);
             }
 
             if ($rental->status === 'dikembalikan') {
-                return response()->json(['success' => false, 'message' => 'Atribut ini sudah dikembalikan.'], 422);
+                throw new HttpException(422, 'Atribut ini sudah dikembalikan.');
             }
 
             $user = $request->user();
             $attribute = Attribute::find($rental->fk_attribute_id);
             if ($attribute && !$this->checkFieldAccess($user, $attribute->fk_field_id)) {
-                return response()->json(['success' => false, 'message' => 'Anda tidak memiliki akses ke atribut ini.'], 403);
+                throw new HttpException(403, self::ACCESS_DENIED_MSG);
             }
 
             DB::transaction(function () use ($rental, $attribute) {
@@ -160,31 +177,40 @@ class AttributeRentalController extends Controller
                 }
             });
 
-            return response()->json(['success' => true, 'message' => 'Atribut berhasil dikembalikan.', 'data' => $rental->fresh()->load('attribute:id,name,type')]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memproses pengembalian, silahkan coba lagi.'], 500);
+            $data = [
+                'success' => true,
+                'message' => 'Atribut berhasil dikembalikan.',
+                'data' => $rental->fresh()->load('attribute:id,name,type')
+            ];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['success' => false, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal memproses pengembalian, silahkan coba lagi.'];
         }
+        return response()->json($data, $status);
     }
 
     public function history(Request $request): JsonResponse
     {
+        $status = 200;
         try {
             $user = $request->user();
             $search = $request->search;
             $startDate = $request->start_date;
             $endDate = $request->end_date;
-            $status = $request->status;
+            $statusFilter = $request->status;
 
             $query = BookingAttribute::with('attribute:id,name,type,fk_field_id');
 
             if ($user && $user->role === 'worker') {
                 $fieldIds = $this->getAccessibleFieldIds($user);
                 if (empty($fieldIds)) {
-                    return response()->json(['success' => true, 'message' => 'Data riwayat berhasil diambil.', 'data' => []]);
+                    $data = ['success' => true, 'message' => 'Data riwayat berhasil diambil.', 'data' => []];
+                    return response()->json($data, $status);
                 }
-                $query->whereHas('attribute', function ($q) use ($fieldIds) {
-                    $q->whereIn('fk_field_id', $fieldIds);
-                });
+                $query->whereIn('fk_field_id', $fieldIds);
             }
 
             if ($search) {
@@ -199,28 +225,40 @@ class AttributeRentalController extends Controller
                 $query->whereDate('transaction_date', '<=', $endDate);
             }
 
-            if ($status) {
-                $query->where('status', $status);
+            if ($statusFilter) {
+                $query->where('status', $statusFilter);
             }
 
-            return response()->json(['success' => true, 'message' => 'Data riwayat penyewaan berhasil diambil.', 'data' => $query->latest()->paginate($request->limit ?? 20)]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memuat data, silahkan coba lagi.'], 500);
+            $data = [
+                'success' => true,
+                'message' => 'Data riwayat penyewaan berhasil diambil.',
+                'data' => $query->latest()->paginate($request->limit ?? 20)
+            ];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal memuat data, silahkan coba lagi.'];
         }
+        return response()->json($data, $status);
     }
 
     public function show($id): JsonResponse
     {
+        $status = 200;
         try {
             $rental = BookingAttribute::with('attribute:id,name,type,price_hour,stock,fk_field_id')->find($id);
 
             if (!$rental) {
-                return response()->json(['success' => false, 'message' => 'Data penyewaan tidak ditemukan.'], 404);
+                throw new HttpException(404, self::RENTAL_NOT_FOUND_MSG);
             }
 
-            return response()->json(['success' => true, 'message' => 'Detail penyewaan berhasil diambil.', 'data' => $rental]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memuat data, silahkan coba lagi.'], 500);
+            $data = ['success' => true, 'message' => 'Detail penyewaan berhasil diambil.', 'data' => $rental];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $data = ['success' => false, 'message' => $e->getMessage()];
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal memuat data, silahkan coba lagi.'];
         }
+        return response()->json($data, $status);
     }
 }
