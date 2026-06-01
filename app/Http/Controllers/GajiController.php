@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class GajiController extends Controller
 {
@@ -17,11 +18,49 @@ class GajiController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        // 1. Validasi ketat input field (fk_user_id, bulan, tahun, nominal_gaji). Return error 422 jika kosong (E1).
-        // 2. Lakukan pengecekan ke tabel pengeluaran_gaji untuk memastikan data gaji karyawan pada periode bulan & tahun tersebut belum pernah diinput (E2).
-        // 3. Jika lolos validasi, simpan data pencatatan transaksi pengeluaran gaji ke database.
-        // 4. Kembalikan response sukses status 201 beserta payload log pengeluaran yang tersimpan.
+        $validator = validator($request->all(), [
+            'fk_user_id'   => 'required|integer|exists:employees,id',
+            'bulan'        => 'required|integer|between:1,12',
+            'tahun'        => 'required|integer|min:2020|max:2100',
+            'nominal_gaji' => 'required|integer|min:0',
+        ]);
 
-        return response()->json([]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $exists = DB::table('pengeluaran_gaji')
+            ->where('fk_user_id', $request->fk_user_id)
+            ->where('bulan', $request->bulan)
+            ->where('tahun', $request->tahun)
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data gaji karyawan pada periode tersebut sudah ada',
+            ], 409);
+        }
+
+        $id = DB::table('pengeluaran_gaji')->insertGetId([
+            'fk_user_id'   => $request->fk_user_id,
+            'bulan'        => $request->bulan,
+            'tahun'        => $request->tahun,
+            'nominal_gaji' => $request->nominal_gaji,
+            'created_at'   => now(),
+            'updated_at'   => now(),
+        ]);
+
+        $data = DB::table('pengeluaran_gaji')->find($id);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $data,
+            'message' => 'Gaji berhasil dicatat',
+        ], 201);
     }
 }
