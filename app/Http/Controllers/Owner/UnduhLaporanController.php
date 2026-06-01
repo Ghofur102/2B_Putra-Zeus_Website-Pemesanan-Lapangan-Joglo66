@@ -24,27 +24,10 @@ class UnduhLaporanController extends Controller
      */
     public function preview(Request $request): JsonResponse
     {
-        $validator = validator($request->all(), [
-            'bulan'    => 'required|integer|between:1,12',
-            'tahun'    => 'required|integer|min:2020|max:2100',
-            'field_id' => 'nullable|integer|exists:fields,id',
-        ]);
+        $data = $this->validatedReportData($request);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validasi gagal',
-                'errors'  => $validator->errors(),
-            ], 422);
-        }
-
-        $data = $this->buildReportData((int) $request->bulan, (int) $request->tahun, $request->field_id);
-
-        if (empty($data)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data laporan tidak ditemukan untuk periode tersebut',
-            ], 404);
+        if ($data instanceof JsonResponse) {
+            return $data;
         }
 
         return response()->json([
@@ -61,6 +44,36 @@ class UnduhLaporanController extends Controller
      * OUTPUT    : Response (Binary PDF File Stream)
      */
     public function download(Request $request)
+    {
+        $data = $this->validatedReportData($request);
+
+        if ($data instanceof JsonResponse) {
+            return $data;
+        }
+
+        $field = $request->field_id ? Field::find($request->field_id) : null;
+
+        $html = view('pdf.laporan-bulanan', [
+            'monthName'    => $this->monthName((int) $request->bulan),
+            'year'         => $request->tahun,
+            'field'        => $field,
+            'total_income' => $data['total_income'],
+            'total_expense'=> $data['total_expense'],
+            'net_profit'   => $data['net_profit'],
+            'income'       => $data['details']['income'],
+            'expense'      => $data['details']['expense'],
+            'generateAt'   => Carbon::now()->format('d/m/Y H:i'),
+        ])->render();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHtml($html);
+
+        return new Response($pdf->output(), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="laporan-bulanan-' . $request->bulan . '-' . $request->tahun . '.pdf"',
+        ]);
+    }
+
+    private function validatedReportData(Request $request): array|JsonResponse
     {
         $validator = validator($request->all(), [
             'bulan'    => 'required|integer|between:1,12',
@@ -85,26 +98,7 @@ class UnduhLaporanController extends Controller
             ], 404);
         }
 
-        $field = $request->field_id ? Field::find($request->field_id) : null;
-
-        $html = view('pdf.laporan-bulanan', [
-            'monthName'    => $this->monthName((int) $request->bulan),
-            'year'         => $request->tahun,
-            'field'        => $field,
-            'total_income' => $data['total_income'],
-            'total_expense'=> $data['total_expense'],
-            'net_profit'   => $data['net_profit'],
-            'income'       => $data['details']['income'],
-            'expense'      => $data['details']['expense'],
-            'generateAt'   => Carbon::now()->format('d/m/Y H:i'),
-        ])->render();
-
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHtml($html);
-
-        return new Response($pdf->output(), 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="laporan-bulanan-' . $request->bulan . '-' . $request->tahun . '.pdf"',
-        ]);
+        return $data;
     }
 
     private function buildReportData(int $bulan, int $tahun, ?int $fieldId): ?array
