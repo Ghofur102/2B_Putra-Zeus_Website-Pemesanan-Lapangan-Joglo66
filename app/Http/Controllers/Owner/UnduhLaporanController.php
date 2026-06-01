@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -11,7 +11,7 @@ class UnduhLaporanController extends Controller
 {
     /**
      * DEVELOPER : Zami
-     * ROUTE     : GET /api/admin/laporan-pdf/preview
+     * ROUTE     : GET /api/owner/laporan-pdf/preview
      * MIDDLEWARE: auth:sanctum, role:pemilik
      * PARAMETER : Request $request (query: 'bulan', 'tahun')
      * OUTPUT    : JsonResponse ['success' => bool, 'data' => array]
@@ -28,7 +28,7 @@ class UnduhLaporanController extends Controller
 
     /**
      * DEVELOPER : Zami
-     * ROUTE     : GET /api/admin/laporan-pdf/download
+     * ROUTE     : GET /api/owner/laporan-pdf/download
      * MIDDLEWARE: auth:sanctum, role:pemilik
      * PARAMETER : Request $request (query: 'bulan', 'tahun')
      * OUTPUT    : Response (Binary PDF File Stream)

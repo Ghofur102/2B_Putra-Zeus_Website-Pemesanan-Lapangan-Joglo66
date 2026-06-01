@@ -23,24 +23,24 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    Route::get('/dashboard', [DashboardController::class, 'dashboard']); 
+    Route::get('/dashboard', [DashboardController::class, 'dashboard']);
     Route::get('/profile', [AuthController::class, 'profile']);
 
-    Route::get('/list-field', [FieldController::class, 'index']); 
-    Route::get('/detail-field/{field_id}', [FieldController::class, 'show']); 
-    Route::post('/update-field', [FieldController::class, 'update']); 
-    Route::get('/check-slot-availability/{field_id}/{date}', [FieldController::class, 'checkAvailability']); 
-    Route::post('/close-field', [FieldController::class, 'closeField']); 
+    Route::get('/list-field', [FieldController::class, 'index']);
+    Route::get('/detail-field/{field_id}', [FieldController::class, 'show']);
+    Route::post('/update-field', [FieldController::class, 'update']);
+    Route::get('/check-slot-availability/{field_id}/{date}', [FieldController::class, 'checkAvailability']);
+    Route::post('/close-field', [FieldController::class, 'closeField']);
 
-    Route::get('/list-booking', [BookingController::class, 'index']); 
-    Route::post('/create-booking', [BookingController::class, 'store']); 
-    Route::get('/detail-booking/{detail_booking_id}', [BookingController::class, 'show']); 
-    Route::post('/reschedule-booking/{detail_booking_id}', [BookingController::class, 'reschedule']); 
-    Route::post('/cancel-booking/{detail_booking_id}', [BookingController::class, 'cancel']); 
-    Route::get('/list-close-booking', [BookingController::class, 'closedBookings']); 
-    Route::post('/refund-overpayment/{id}', [BookingController::class, 'refundOverpayment']); 
+    Route::get('/list-booking', [BookingController::class, 'index']);
+    Route::post('/create-booking', [BookingController::class, 'store']);
+    Route::get('/detail-booking/{detail_booking_id}', [BookingController::class, 'show']);
+    Route::post('/reschedule-booking/{detail_booking_id}', [BookingController::class, 'reschedule']);
+    Route::post('/cancel-booking/{detail_booking_id}', [BookingController::class, 'cancel']);
+    Route::get('/list-close-booking', [BookingController::class, 'closedBookings']);
+    Route::post('/refund-overpayment/{id}', [BookingController::class, 'refundOverpayment']);
 
-    Route::post('/payment-booking', [PaymentController::class, 'processPayment']); 
+    Route::post('/payment-booking', [PaymentController::class, 'processPayment']);
 
     Route::get('/list-attribute', [AttributeController::class, 'index']);
     Route::get('/detail-attribute/{id}', [AttributeController::class, 'show']);
@@ -60,7 +60,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
     Route::post('/create-expense', [ExpenseController::class, 'addExpense']);
     Route::post('/delete-expense/{id}', [ExpenseController::class, 'detailExpense']);
     Route::get('/expense-categories', [ExpenseController::class, 'getCategories']);
-    
+
     Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
         return $request->user();
     });

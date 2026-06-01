@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -10,7 +10,7 @@ class GajiController extends Controller
 {
     /**
      * DEVELOPER : Zami
-     * ROUTE     : POST /api/admin/gaji
+     * ROUTE     : POST /api/gaji
      * MIDDLEWARE: auth:sanctum, role:bendahara|pemilik
      * PARAMETER : Request $request [fk_user_id, bulan, tahun, nominal_gaji]
      * OUTPUT    : JsonResponse ['success' => bool, 'message' => string, 'data' => object]

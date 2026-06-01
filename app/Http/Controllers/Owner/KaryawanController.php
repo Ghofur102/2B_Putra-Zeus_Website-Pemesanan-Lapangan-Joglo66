@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -10,7 +10,7 @@ class KaryawanController extends Controller
 {
     /**
      * DEVELOPER : Danil
-     * ROUTE     : GET /api/admin/karyawan
+     * ROUTE     : GET /api/owner/karyawan
      * MIDDLEWARE: auth:sanctum, role:pemilik
      * PARAMETER : -
      * OUTPUT    : JsonResponse ['success' => bool, 'data' => array]
@@ -25,7 +25,7 @@ class KaryawanController extends Controller
 
     /**
      * DEVELOPER : Danil
-     * ROUTE     : POST /api/admin/karyawan
+     * ROUTE     : POST /api/owner/karyawan
      * MIDDLEWARE: auth:sanctum, role:pemilik
      * PARAMETER : Request $request [nama, email, password, role]
      * OUTPUT    : JsonResponse ['success' => bool, 'message' => string, 'data' => object]
@@ -43,7 +43,7 @@ class KaryawanController extends Controller
 
     /**
      * DEVELOPER : Danil
-     * ROUTE     : PUT /api/admin/karyawan/{id}
+     * ROUTE     : PUT /api/owner/karyawan/{id}
      * MIDDLEWARE: auth:sanctum, role:pemilik
      * PARAMETER : Request $request [nama, email, role, (optional)password], $id
      * OUTPUT    : JsonResponse ['success' => bool, 'message' => string]
@@ -61,7 +61,7 @@ class KaryawanController extends Controller
 
     /**
      * DEVELOPER : Danil
-     * ROUTE     : DELETE /api/admin/karyawan/{id}
+     * ROUTE     : DELETE /api/owner/karyawan/{id}
      * MIDDLEWARE: auth:sanctum, role:pemilik
      * PARAMETER : $id
      * OUTPUT    : JsonResponse ['success' => bool, 'message' => string]

@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use App\Models\BookingDetail;
 use App\Models\Booking;
 use Illuminate\View\View;
+use App\Http\Controllers\Controller;
 
 class DashboardController extends Controller
 {
