@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
 class KaryawanController extends Controller
 {
@@ -17,10 +20,13 @@ class KaryawanController extends Controller
      */
     public function index(): JsonResponse
     {
-        // 1. Tarik seluruh list data master karyawan terbaru dari database (id, nama, email, role).
-        // 2. Kembalikan response JSON sukses status 200 membawa data array karyawan.
+        $karyawan = User::whereIn('role', ['worker', 'manager'])
+            ->get(['id', 'name', 'email', 'role']);
 
-        return response()->json([]);
+        return response()->json([
+            'success' => true,
+            'data' => $karyawan
+        ], 200);
     }
 
     /**
@@ -32,13 +38,33 @@ class KaryawanController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        // 1. Validasi input field wajib (nama, email, password, role). Skenario E1 jika tidak lengkap.
-        // 2. Cek apakah email sudah terdaftar di database untuk menghindari redundansi akun. Skenario E2 jika duplikat.
-        // 3. Enkripsi password menggunakan bcrypt/hash.
-        // 4. Lakukan operasi insert record karyawan baru ke tabel users dengan penentuan hak akses (role).
-        // 5. Kembalikan response sukses 201 dengan muatan objek data karyawan yang berhasil disimpan.
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:60',
+            'email' => 'required|email|unique:mysql_joglo66_app.users,email',
+            'password' => 'required|string|min:8',
+            'role' => 'required|in:worker,manager',
+        ]);
 
-        return response()->json([]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => $request->role,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Karyawan berhasil ditambahkan.',
+            'data' => $user
+        ], 201);
     }
 
     /**
@@ -50,13 +76,40 @@ class KaryawanController extends Controller
      */
     public function update(Request $request, $id): JsonResponse
     {
-        // 1. Cari record data karyawan berdasarkan primary key ID. Jika tidak ada, return 404.
-        // 2. Validasi kelengkapan data masukan baru.
-        // 3. Cek pengecualian email unik jika pengguna merubah alamat emailnya.
-        // 4. Eksekusi perintah pembaharuan (update) record data profil beserta role/hak akses sistem.
-        // 5. Kembalikan response JSON 200 tanda perubahan berhasil disimpan permanen.
+        $user = User::find($id);
 
-        return response()->json([]);
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data karyawan tidak ditemukan.'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => 'string|max:60',
+            'email' => 'email|unique:mysql_joglo66_app.users,email,' . $id,
+            'password' => 'nullable|string|min:8',
+            'role' => 'in:worker,manager',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $data = $request->only(['name', 'email', 'role']);
+        if ($request->filled('password')) {
+            $data['password'] = Hash::make($request->password);
+        }
+        $user->update($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data karyawan berhasil diperbarui.'
+        ], 200);
     }
 
     /**
@@ -68,11 +121,31 @@ class KaryawanController extends Controller
      */
     public function destroy($id): JsonResponse
     {
-        // 1. Cari record data karyawan target berdasarkan parameter ID.
-        // 2. Jika data terikat dengan integritas foreign key tabel transaksi, kembalikan response batasan 400.
-        // 3. Jalankan fungsi delete data karyawan dari database.
-        // 4. Kembalikan response JSON sukses status 200.
+        $user = User::find($id);
 
-        return response()->json([]);
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data karyawan tidak ditemukan.'
+            ], 404);
+        }
+
+        $hasRelation = $user->bookings()->exists() ||
+                       $user->expenses()->exists() ||
+                       $user->fieldAdmin()->exists();
+
+        if ($hasRelation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Karyawan tidak dapat dihapus karena masih memiliki data transaksi.'
+            ], 400);
+        }
+
+        $user->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Karyawan berhasil dihapus.'
+        ], 200);
     }
 }
