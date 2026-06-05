@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Treasure;
 
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use App\Models\EmployeeSalary;
 use App\Models\Payment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -14,19 +15,10 @@ use Throwable;
 
 class LaporanController extends Controller
 {
-    /**
-     * DEVELOPER : Huda
-     * ROUTE     : GET /api/admin/laporan-bulanan
-     * MIDDLEWARE: auth:sanctum, check.field.admin
-     * PARAMETER : Request $request (query: 'bulan', 'tahun')
-     * OUTPUT    : JsonResponse ['success' => bool, 'message' => string, 'data' => array]
-     */
-
-    // Map angka bulan ke nama enum di tabel employee_salaries
     private const MONTH_MAP = [
         1  => 'january',   2  => 'february', 3  => 'march',
-        4  => 'april',     5  => 'may',       6  => 'june',
-        7  => 'july',      8  => 'august',    9  => 'september',
+        4  => 'april',     5  => 'may',      6  => 'june',
+        7  => 'july',      8  => 'august',   9  => 'september',
         10 => 'october',   11 => 'november',  12 => 'december',
     ];
 
@@ -35,13 +27,11 @@ class LaporanController extends Controller
         $status = 200;
 
         try {
-            // Cek role: hanya bendahara yang boleh akses
             $user = $request->user();
-            if (!$user || $user->role !== 'bendahara') {
+            if (!$user || $user->role !== 'treasurer') {
                 throw new HttpException(403, 'Forbidden. Hanya bendahara yang dapat mengakses laporan bulanan.');
             }
 
-            // 1. Validasi input query parameter 'bulan' (1-12) dan 'tahun' (integer).
             $validator = Validator::make($request->query(), [
                 'bulan' => ['required', 'integer', 'min:1', 'max:12'],
                 'tahun' => ['required', 'integer', 'min:2000', 'max:' . date('Y')],
@@ -55,75 +45,112 @@ class LaporanController extends Controller
                 ], 422);
             }
 
-            $bulan      = (int) $validator->validated()['bulan'];
-            $tahun      = (int) $validator->validated()['tahun'];
-            $monthEnum  = self::MONTH_MAP[$bulan];
+            $bulan     = (int) $validator->validated()['bulan'];
+            $tahun     = (int) $validator->validated()['tahun'];
+            $monthEnum = self::MONTH_MAP[$bulan];
 
-            // 2. Ambil data agregat transaksi bulanan dari payments
-            //    (Pemasukan Booking: down payment + final payment)
-            $payments = Payment::whereYear('paid_at', $tahun)
-                ->whereMonth('paid_at', $bulan)
+            $startDate = Carbon::create($tahun, $bulan, 1)->startOfMonth();
+            $endDate   = Carbon::create($tahun, $bulan, 1)->endOfMonth();
+
+            $payments = Payment::whereBetween('paid_at', [$startDate, $endDate])
                 ->where('status', 'success')
                 ->get();
 
-            $totalDP        = $payments->where('payment_type', 'down payment')->sum('amount');
-            $totalPelunasan = $payments->where('payment_type', 'final payment')->sum('amount');
-            $totalAtribut   = $payments->where('payment_type', 'attribute rental')->sum('amount');
-            $totalPemasukan = $totalDP + $totalPelunasan + $totalAtribut;
+            $totalDP        = $payments->filter(fn($p) => strtolower(trim($p->payment_type)) === 'down payment')->sum('amount');
+            $totalPelunasan = $payments->filter(fn($p) => strtolower(trim($p->payment_type)) === 'final payment')->sum('amount');
+            $totalDPHangus  = $payments->filter(fn($p) => strtolower(trim($p->payment_type)) === 'dp hangus')->sum('amount');
+            $totalAtribut   = $payments->filter(fn($p) => in_array(strtolower(trim($p->payment_type)), ['attribute rental', 'attribute']))->sum('amount');
 
-            // 3. Tarik total nominal DP hangus pada periode bulan berjalan.
-            $totalDPHangus = $payments->where('payment_type', 'dp hangus')->sum('amount');
+            $totalBooking   = $totalDP + $totalPelunasan;
+            $totalPemasukan = $totalBooking + $totalAtribut + $totalDPHangus;
 
-            // 4. Ambil pengeluaran operasional dari tabel expenses (non-gaji).
-            $expenses = Expense::whereYear('expense_date', $tahun)
-                ->whereMonth('expense_date', $bulan)
+            $salaries = EmployeeSalary::where('period_month', $monthEnum)
+                ->where('period_year', $tahun)
+                ->get();
+
+            $totalGaji = $salaries->sum(fn ($s) => $s->amount_paid + $s->bonus - $s->deduction);
+
+            $salaryExpenseIds = $salaries->pluck('fk_expense_id')->filter()->toArray();
+
+            $expenses = Expense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->when(!empty($salaryExpenseIds), function ($query) use ($salaryExpenseIds) {
+                    return $query->whereNotIn('id', $salaryExpenseIds);
+                })
                 ->get();
 
             $totalOperasional = $expenses->sum('amount');
+            $totalPengeluaran = $totalOperasional + $totalGaji;
 
             $expenseBreakdown = $expenses->groupBy('category')->map(fn ($group) => [
                 'category' => $group->first()->category,
                 'amount'   => $group->sum('amount'),
             ])->values();
 
-            // Ambil pengeluaran gaji karyawan dari tabel employee_salaries.
-            $salaries = EmployeeSalary::where('period_month', $monthEnum)
-                ->where('period_year', $tahun)
-                ->get();
+            $netProfit = $totalPemasukan - $totalPengeluaran;
 
-            $totalGaji = $salaries->sum(fn ($s) =>
-                $s->amount_paid + $s->bonus - $s->deduction
-            );
+            $incomeDetails = $payments->filter(function($p) {
+                return in_array(strtolower(trim($p->payment_type)), ['down payment', 'final payment', 'dp hangus']);
+            })->map(function($p) {
+                return [
+                    'id'          => 'inc_' . $p->id,
+                    'date'        => Carbon::parse($p->paid_at)->format('Y-m-d H:i:s'),
+                    'type'        => 'income',
+                    'category'    => $p->payment_type,
+                    'description' => 'Penyewaan Lapangan (' . ucwords(str_replace('_', ' ', $p->payment_type)) . ')',
+                    'amount'      => $p->amount,
+                ];
+            });
 
-            // 5. Kalkulasi laba/rugi bersih:
-            //    (Total Pemasukan + DP Hangus) - Pengeluaran Operasional - Total Gaji
-            $netProfit = ($totalPemasukan + $totalDPHangus) - $totalOperasional - $totalGaji;
+            $expenseDetails = $expenses->map(function($e) {
+                return [
+                    'id'          => 'exp_' . $e->id,
+                    'date'        => Carbon::parse($e->expense_date)->format('Y-m-d H:i:s'),
+                    'type'        => 'expense',
+                    'category'    => $e->category,
+                    'description' => 'Pengeluaran Lapangan (' . $e->category . ')',
+                    'amount'      => $e->amount,
+                ];
+            });
 
-            // 6. Kembalikan response JSON 200 berupa data summary neraca keuangan bulanan.
+            $salaryDetails = $salaries->map(function($s) use ($tahun, $bulan) {
+                $dateObj = $s->payment_date ? Carbon::parse($s->payment_date) : Carbon::create($tahun, $bulan, date('t', strtotime("$tahun-$bulan-01")));
+                return [
+                    'id'          => 'sal_' . $s->id,
+                    'date'        => $dateObj->format('Y-m-d H:i:s'),
+                    'type'        => 'expense',
+                    'category'    => 'Gaji',
+                    'description' => 'Pembayaran Gaji Karyawan',
+                    'amount'      => $s->amount_paid + $s->bonus - $s->deduction,
+                ];
+            });
+
+            $dailyTransactions = $incomeDetails->concat($expenseDetails)->concat($salaryDetails)->sortByDesc('date')->values()->all();
+
             $data = [
                 'success' => true,
                 'message' => 'Data laporan bulanan berhasil diambil.',
                 'data'    => [
-                    'periode'      => [
-                        'bulan' => $bulan,
-                        'tahun' => $tahun,
-                        'label' => ucfirst($monthEnum) . ' ' . $tahun,
+                    'month'              => ucfirst($monthEnum),
+                    'year'               => $tahun,
+                    'total_income'       => $totalPemasukan,
+                    'total_expense'      => $totalPengeluaran,
+                    'net_profit'         => $netProfit,
+                    'generate_at'        => now()->toDateString(),
+                    'expenses'           => $expenseBreakdown,
+                    'daily_transactions' => $dailyTransactions,
+                    'details'            => [
+                        'income' => [
+                            'booking'              => $totalBooking,
+                            'down_payment'         => $totalDP,
+                            'final_payment'        => $totalPelunasan,
+                            'forsaken_downpayment' => $totalDPHangus,
+                            'attribute_rental'     => $totalAtribut,
+                        ],
+                        'expense' => [
+                            'operational' => $totalOperasional,
+                            'salary'      => $totalGaji,
+                        ],
                     ],
-                    'pemasukan'    => [
-                        'total_dp'        => $totalDP,
-                        'total_pelunasan' => $totalPelunasan,
-                        'total_atribut'   => $totalAtribut,
-                        'total_dp_hangus' => $totalDPHangus,
-                        'total'           => $totalPemasukan,
-                    ],
-                    'pengeluaran'  => [
-                        'operasional'     => $totalOperasional,
-                        'gaji'            => $totalGaji,
-                        'total'           => $totalOperasional + $totalGaji,
-                        'breakdown'       => $expenseBreakdown,
-                    ],
-                    'net_profit'   => $netProfit,
-                    'generate_at'  => now()->toDateString(),
                 ],
             ];
 

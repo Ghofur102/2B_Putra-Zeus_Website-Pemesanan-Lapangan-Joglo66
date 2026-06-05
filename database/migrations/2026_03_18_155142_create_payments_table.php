@@ -11,7 +11,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // ini belum diubah nomer 8 dan seterusnya
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('fk_booking_id')->constrained('bookings')->onDelete('cascade');
@@ -19,7 +18,7 @@ return new class extends Migration
             $table->string('reference_id')->nullable()->unique()->index();
             $table->string('payment_url', 255)->nullable();
             $table->enum('payment_type', ['down payment', 'final payment', 'reschedule fee',  'refund'])->index();
-            $table->enum('method', ['cash', 'transfer'])->index();
+            $table->string('method');
             $table->unsignedInteger('amount');
             $table->enum('status', ['pending', 'success', 'failed'])->default('pending')->index();
             $table->timestamp('paid_at')->nullable();

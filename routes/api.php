@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Admin\AttributeController;
 use App\Http\Controllers\Admin\AttributeRentalController;
 use App\Http\Controllers\Admin\ExpenseController;
+use App\Http\Controllers\Treasure\LaporanController;
+use App\Http\Controllers\Treasure\GajiController;
 
 Route::post('/duitku/callback', [DuitkuController::class, 'callback']);
 
@@ -55,13 +57,16 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
     Route::get('/detail-rent-attribute/{id}', [AttributeRentalController::class, 'show']);
     Route::get('/history-rent-attribute', [AttributeRentalController::class, 'history']);
 
-    // Expense Management
     Route::get('/list-expense', [ExpenseController::class, 'listExpense']);
     Route::post('/create-expense', [ExpenseController::class, 'addExpense']);
     Route::post('/delete-expense/{id}', [ExpenseController::class, 'detailExpense']);
     Route::get('/expense-categories', [ExpenseController::class, 'getCategories']);
+});
 
-    Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-        return $request->user();
-    });
+Route::prefix('treasurer')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/laporan-bulanan', [LaporanController::class, 'index']);
+    Route::get('/gaji', [GajiController::class, 'index']);
+    Route::post('/gaji/update', [GajiController::class, 'update']);
+    Route::post('/gaji/sync', [GajiController::class, 'sync']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 });
