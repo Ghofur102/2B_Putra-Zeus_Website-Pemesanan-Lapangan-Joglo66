@@ -11,7 +11,6 @@ class UserSeeder extends Seeder
     {
         User::factory(1)->create(['role' => 'owner']);
         User::factory(1)->create(['role' => 'treasurer']);
-        User::factory(2)->create(['role' => 'manager']);
         User::factory(2)->create(['role' => 'worker']);
         User::factory(5)->create(['role' => 'tenant']);
     }

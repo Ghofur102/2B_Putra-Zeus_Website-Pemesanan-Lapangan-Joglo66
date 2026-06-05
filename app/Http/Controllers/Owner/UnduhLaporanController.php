@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
-use App\Models\BookingDetail;
 use App\Models\EmployeeSalary;
 use App\Models\Expense;
 use App\Models\Field;
@@ -12,16 +11,18 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\URL;
 
 class UnduhLaporanController extends Controller
 {
-    /**
-     * DEVELOPER : Zami
-     * ROUTE     : GET /api/owner/laporan-pdf/preview
-     * MIDDLEWARE: auth:sanctum, role:pemilik
-     * PARAMETER : Request $request (query: 'bulan', 'tahun')
-     * OUTPUT    : JsonResponse ['success' => bool, 'data' => array]
-     */
+    private const MONTH_MAP = [
+        1  => 'january',   2  => 'february', 3  => 'march',
+        4  => 'april',     5  => 'may',      6  => 'june',
+        7  => 'july',      8  => 'august',   9  => 'september',
+        10 => 'october',   11 => 'november',  12 => 'december',
+    ];
+
     public function preview(Request $request): JsonResponse
     {
         $data = $this->validatedReportData($request);
@@ -30,19 +31,23 @@ class UnduhLaporanController extends Controller
             return $data;
         }
 
+        $data['download_url'] = URL::temporarySignedRoute(
+            'owner.laporan.download',
+            now()->addMinutes(30),
+            [
+                'bulan' => $request->bulan,
+                'tahun' => $request->tahun,
+                'field_id' => $request->field_id
+            ]
+        );
+
         return response()->json([
             'success' => true,
+            'message' => 'Preview laporan berhasil diambil.',
             'data'    => $data,
         ]);
     }
 
-    /**
-     * DEVELOPER : Zami
-     * ROUTE     : GET /api/owner/laporan-pdf/download
-     * MIDDLEWARE: auth:sanctum, role:pemilik
-     * PARAMETER : Request $request (query: 'bulan', 'tahun')
-     * OUTPUT    : Response (Binary PDF File Stream)
-     */
     public function download(Request $request)
     {
         $data = $this->validatedReportData($request);
@@ -51,18 +56,15 @@ class UnduhLaporanController extends Controller
             return $data;
         }
 
-        $field = $request->field_id ? Field::find($request->field_id) : null;
-
         $html = view('pdf.laporan-bulanan', [
-            'monthName'    => $this->monthName((int) $request->bulan),
-            'year'         => $request->tahun,
-            'field'        => $field,
-            'total_income' => $data['total_income'],
-            'total_expense'=> $data['total_expense'],
-            'net_profit'   => $data['net_profit'],
-            'income'       => $data['details']['income'],
-            'expense'      => $data['details']['expense'],
-            'generateAt'   => Carbon::now()->format('d/m/Y H:i'),
+            'monthName'     => $data['month'],
+            'year'          => $data['year'],
+            'total_income'  => $data['total_income'],
+            'total_expense' => $data['total_expense'],
+            'net_profit'    => $data['net_profit'],
+            'income'        => $data['details']['income'],
+            'expense'       => $data['details']['expense'],
+            'generateAt'    => Carbon::now()->format('d/m/Y H:i'),
         ])->render();
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHtml($html);
@@ -75,10 +77,9 @@ class UnduhLaporanController extends Controller
 
     private function validatedReportData(Request $request): array|JsonResponse
     {
-        $validator = validator($request->all(), [
-            'bulan'    => 'required|integer|between:1,12',
-            'tahun'    => 'required|integer|min:2020|max:2100',
-            'field_id' => 'nullable|integer|exists:fields,id',
+        $validator = Validator::make($request->all(), [
+            'bulan' => ['required', 'integer', 'min:1', 'max:12'],
+            'tahun' => ['required', 'integer', 'min:2000', 'max:' . date('Y')],
         ]);
 
         if ($validator->fails()) {
@@ -89,123 +90,114 @@ class UnduhLaporanController extends Controller
             ], 422);
         }
 
-        $data = $this->buildReportData((int) $request->bulan, (int) $request->tahun, $request->field_id);
+        $bulan = (int) $request->bulan;
+        $tahun = (int) $request->tahun;
 
-        if (empty($data)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data laporan tidak ditemukan untuk periode tersebut',
-            ], 404);
-        }
-
-        return $data;
+        return $this->buildReportData($bulan, $tahun);
     }
 
-    private function buildReportData(int $bulan, int $tahun, ?int $fieldId): ?array
+    private function buildReportData(int $bulan, int $tahun): array
     {
-        $field = $fieldId ? Field::find($fieldId) : null;
+        $monthEnum = self::MONTH_MAP[$bulan];
+        $startDate = Carbon::create($tahun, $bulan, 1)->startOfMonth();
+        $endDate   = Carbon::create($tahun, $bulan, 1)->endOfMonth();
 
-        $bookingQuery = BookingDetail::whereYear('play_date', $tahun)
-            ->whereMonth('play_date', $bulan)
-            ->whereNotIn('status', ['cancelled']);
-
-        if ($fieldId) {
-            $bookingQuery->whereHas('booking', fn($q) => $q->where('fk_field_id', $fieldId));
-        }
-
-        $totalBooking = (int) $bookingQuery->sum('price');
-
-        $dpQuery = Payment::where('payment_type', 'down payment')
+        $payments = Payment::whereBetween('paid_at', [$startDate, $endDate])
             ->where('status', 'success')
-            ->whereNotNull('paid_at')
-            ->whereYear('paid_at', $tahun)
-            ->whereMonth('paid_at', $bulan);
+            ->get();
 
-        $fpQuery = Payment::where('payment_type', 'final payment')
-            ->where('status', 'success')
-            ->whereNotNull('paid_at')
-            ->whereYear('paid_at', $tahun)
-            ->whereMonth('paid_at', $bulan);
+        $totalDP        = $payments->filter(fn($p) => strtolower(trim($p->payment_type)) === 'down payment')->sum('amount');
+        $totalPelunasan = $payments->filter(fn($p) => strtolower(trim($p->payment_type)) === 'final payment')->sum('amount');
+        $totalDPHangus  = $payments->filter(fn($p) => strtolower(trim($p->payment_type)) === 'dp hangus')->sum('amount');
+        $totalAtribut   = $payments->filter(fn($p) => in_array(strtolower(trim($p->payment_type)), ['attribute rental', 'attribute']))->sum('amount');
 
-        if ($fieldId) {
-            $dpQuery->whereHas('booking', fn($q) => $q->where('fk_field_id', $fieldId));
-            $fpQuery->whereHas('booking', fn($q) => $q->where('fk_field_id', $fieldId));
-        }
+        $totalBooking   = $totalDP + $totalPelunasan;
+        $totalPemasukan = $totalBooking + $totalAtribut + $totalDPHangus;
 
-        $totalDp = (int) $dpQuery->sum('amount');
-        $totalFp = (int) $fpQuery->sum('amount');
+        $salaries = EmployeeSalary::where('period_month', $monthEnum)
+            ->where('period_year', $tahun)
+            ->get();
 
-        $forsakenQuery = Payment::where('payment_type', 'down payment')
-            ->where('status', 'success')
-            ->whereNotNull('paid_at')
-            ->whereYear('paid_at', $tahun)
-            ->whereMonth('paid_at', $bulan)
-            ->whereHas('bookingDetail', fn($q) => $q->where('status', 'cancelled'))
-            ->whereDoesntHave('bookingDetail.payment', fn($q) => $q->where('payment_type', 'refund')->where('status', 'success'));
+        $totalGaji = $salaries->sum(fn ($s) => $s->amount_paid + $s->bonus - $s->deduction);
 
-        if ($fieldId) {
-            $forsakenQuery->whereHas('booking', fn($q) => $q->where('fk_field_id', $fieldId));
-        }
+        $salaryExpenseIds = $salaries->pluck('fk_expense_id')->filter()->toArray();
 
-        $totalForsaken = (int) $forsakenQuery->sum('amount');
+        $expenses = Expense::whereBetween('expense_date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->when(!empty($salaryExpenseIds), function ($query) use ($salaryExpenseIds) {
+                return $query->whereNotIn('id', $salaryExpenseIds);
+            })
+            ->get();
 
-        $expenseQuery = Expense::whereYear('expense_date', $tahun)
-            ->whereMonth('expense_date', $bulan);
+        $totalOperasional = $expenses->sum('amount');
+        $totalPengeluaran = $totalOperasional + $totalGaji;
 
-        if ($fieldId) {
-            $expenseQuery->where('fk_field_id', $fieldId);
-        }
+        $expenseBreakdown = $expenses->groupBy('category')->map(fn ($group) => [
+            'category' => $group->first()->category,
+            'amount'   => $group->sum('amount'),
+        ])->values();
 
-        $totalOperational = (int) $expenseQuery->sum('amount');
+        $netProfit = $totalPemasukan - $totalPengeluaran;
 
-        $totalSalary = (int) EmployeeSalary::where('period_year', $tahun)
-            ->where('period_month', $this->monthName($bulan))
-            ->sum('amount_paid');
+        $incomeDetails = $payments->filter(function($p) {
+            return in_array(strtolower(trim($p->payment_type)), ['down payment', 'final payment', 'dp hangus']);
+        })->map(function($p) {
+            return [
+                'id'          => 'inc_' . $p->id,
+                'date'        => Carbon::parse($p->paid_at)->format('Y-m-d H:i:s'),
+                'type'        => 'income',
+                'category'    => $p->payment_type,
+                'description' => 'Penyewaan Lapangan (' . ucwords(str_replace('_', ' ', $p->payment_type)) . ')',
+                'amount'      => $p->amount,
+            ];
+        });
 
-        $totalIncome = $totalBooking + $totalDp + $totalFp + $totalForsaken;
-        $totalExpense = $totalOperational + $totalSalary;
-        $netProfit = $totalIncome - $totalExpense;
+        $expenseDetails = $expenses->map(function($e) {
+            return [
+                'id'          => 'exp_' . $e->id,
+                'date'        => Carbon::parse($e->expense_date)->format('Y-m-d H:i:s'),
+                'type'        => 'expense',
+                'category'    => $e->category,
+                'description' => 'Pengeluaran Lapangan (' . $e->category . ')',
+                'amount'      => $e->amount,
+            ];
+        });
 
-        $reportId = null;
-        $reportRecord = \App\Models\FinancialReport::whereYear('generate_at', $tahun)
-            ->whereMonth('generate_at', $bulan)
-            ->when($fieldId, fn($q) => $q->where('fk_field_id', $fieldId))
-            ->first();
+        $salaryDetails = $salaries->map(function($s) use ($tahun, $bulan) {
+            $dateObj = $s->payment_date ? Carbon::parse($s->payment_date) : Carbon::create($tahun, $bulan, date('t', strtotime("$tahun-$bulan-01")));
+            return [
+                'id'          => 'sal_' . $s->id,
+                'date'        => $dateObj->format('Y-m-d H:i:s'),
+                'type'        => 'expense',
+                'category'    => 'Gaji',
+                'description' => 'Pembayaran Gaji Karyawan',
+                'amount'      => $s->amount_paid + $s->bonus - $s->deduction,
+            ];
+        });
 
-        if ($reportRecord) {
-            $reportId = $reportRecord->id;
-        }
+        $dailyTransactions = $incomeDetails->concat($expenseDetails)->concat($salaryDetails)->sortByDesc('date')->values()->all();
 
         return [
-            'id'            => $reportId ?? 0,
-            'month'         => $this->monthName($bulan),
-            'year'          => $tahun,
-            'total_income'  => $totalIncome,
-            'total_expense' => $totalExpense,
-            'net_profit'    => max($netProfit, 0),
-            'field'         => $field ? ['id' => $field->id, 'name' => $field->name] : null,
-            'details'       => [
-                'income'  => [
-                    'booking'             => $totalBooking,
-                    'down_payment'        => $totalDp,
-                    'final_payment'       => $totalFp,
-                    'forsaken_downpayment'=> $totalForsaken,
+            'month'              => ucfirst($monthEnum),
+            'year'               => $tahun,
+            'total_income'       => $totalPemasukan,
+            'total_expense'      => $totalPengeluaran,
+            'net_profit'         => $netProfit,
+            'generate_at'        => now()->toDateString(),
+            'expenses'           => $expenseBreakdown,
+            'daily_transactions' => $dailyTransactions,
+            'details'            => [
+                'income' => [
+                    'booking'              => $totalBooking,
+                    'down_payment'         => $totalDP,
+                    'final_payment'        => $totalPelunasan,
+                    'forsaken_downpayment' => $totalDPHangus,
+                    'attribute_rental'     => $totalAtribut,
                 ],
                 'expense' => [
-                    'operational' => $totalOperational,
-                    'salary'      => $totalSalary,
+                    'operational' => $totalOperasional,
+                    'salary'      => $totalGaji,
                 ],
             ],
-            'generate_at'   => Carbon::now()->format('Y-m-d'),
         ];
-    }
-
-    private function monthName(int $bulan): string
-    {
-        return [
-            1 => 'january', 2 => 'february', 3 => 'march', 4 => 'april',
-            5 => 'may', 6 => 'june', 7 => 'july', 8 => 'august',
-            9 => 'september', 10 => 'october', 11 => 'november', 12 => 'december',
-        ][$bulan] ?? 'january';
     }
 }

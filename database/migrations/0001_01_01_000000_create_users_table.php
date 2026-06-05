@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('password', 255);
             $table->string('phone', 15)->nullable();
             $table->timestamp('phone_verified_at')->nullable();
-            $table->enum('role', ['worker', 'tenant', 'treasurer', 'owner', 'manager'])->index();
+            $table->enum('role', ['worker', 'tenant', 'treasurer', 'owner'])->index();
             $table->rememberToken();
             $table->timestamps();
         });

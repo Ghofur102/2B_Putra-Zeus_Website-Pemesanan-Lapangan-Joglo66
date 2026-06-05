@@ -13,6 +13,8 @@ use App\Http\Controllers\Admin\AttributeRentalController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Treasure\LaporanController;
 use App\Http\Controllers\Treasure\GajiController;
+use App\Http\Controllers\Owner\KaryawanController;
+use App\Http\Controllers\Owner\UnduhLaporanController;
 
 Route::post('/duitku/callback', [DuitkuController::class, 'callback']);
 
@@ -70,3 +72,17 @@ Route::prefix('treasurer')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/gaji/sync', [GajiController::class, 'sync']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
+
+Route::prefix('owner')->middleware(['auth:sanctum'])->group(function () {
+    Route::get('/karyawan', [KaryawanController::class, 'index']);
+    Route::post('/karyawan', [KaryawanController::class, 'store']);
+    Route::post('/karyawan/{id}/update', [KaryawanController::class, 'update']);
+    Route::post('/karyawan/{id}/delete', [KaryawanController::class, 'destroy']);
+
+    Route::get('/laporan-pdf/preview', [UnduhLaporanController::class, 'preview']);
+    Route::post('/logout', [AuthController::class, 'logout']);
+});
+
+Route::get('/owner/laporan-pdf/download', [UnduhLaporanController::class, 'download'])
+        ->name('owner.laporan.download')
+        ->middleware('signed');
