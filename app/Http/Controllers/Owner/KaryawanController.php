@@ -168,11 +168,14 @@ class KaryawanController extends Controller
 
         } catch (HttpException $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->getStatusCode());
+            $status = $e->getStatusCode();
+            $response = ['success' => false, 'message' => $e->getMessage()];
         } catch (Throwable $e) {
             DB::rollBack();
-            return response()->json(['success' => false, 'message' => 'Gagal memperbarui data.', 'error' => $e->getMessage()], 500);
-        }
+            $status = 500;
+            $response = ['success' => false, 'message' => 'Gagal memperbarui data.', 'error' => $e->getMessage()];
+    }
+        return response()->json($response, $status);
     }
 
     public function destroy($id): JsonResponse

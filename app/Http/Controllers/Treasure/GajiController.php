@@ -16,6 +16,8 @@ use Throwable;
 
 class GajiController extends Controller
 {
+    private $statusAccessDenied = 'Akses ditolak.';
+    private $statusValidationFailed = 'Validasi gagal.';
     private const MONTH_MAP = [
         1 => 'january', 2 => 'february', 3 => 'march', 4 => 'april',
         5 => 'may', 6 => 'june', 7 => 'july', 8 => 'august',
@@ -27,7 +29,7 @@ class GajiController extends Controller
         try {
             $user = $request->user();
             if (!$user || $user->role !== 'treasurer') {
-                throw new HttpException(403, 'Akses ditolak.');
+                throw new HttpException(403, $this->statusAccessDenied);
             }
 
             $validator = Validator::make($request->query(), [
@@ -36,7 +38,7 @@ class GajiController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json(['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
+                return response()->json(['success' => false, 'message' => $this->statusValidationFailed, 'errors' => $validator->errors()], 422);
             }
 
             $bulan = (int) $request->bulan;
@@ -83,7 +85,7 @@ class GajiController extends Controller
         try {
             $user = $request->user();
             if (!$user || $user->role !== 'treasurer') {
-                throw new HttpException(403, 'Akses ditolak.');
+                throw new HttpException(403, $this->statusAccessDenied);
             }
 
             $validator = Validator::make($request->all(), [
@@ -97,7 +99,7 @@ class GajiController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json(['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
+                return response()->json(['success' => false, 'message' => $this->statusValidationFailed, 'errors' => $validator->errors()], 422);
             }
 
             $val = $validator->validated();
@@ -172,7 +174,7 @@ class GajiController extends Controller
         try {
             $user = $request->user();
             if (!$user || $user->role !== 'treasurer') {
-                throw new HttpException(403, 'Akses ditolak.');
+                throw new HttpException(403, $this->statusAccessDenied);
             }
 
             $validator = Validator::make($request->all(), [
@@ -181,7 +183,7 @@ class GajiController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json(['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
+                return response()->json(['success' => false, 'message' => $this->statusValidationFailed, 'errors' => $validator->errors()], 422);
             }
 
             $val = $validator->validated();
