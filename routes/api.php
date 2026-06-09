@@ -11,7 +11,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Admin\AttributeController;
 use App\Http\Controllers\Admin\AttributeRentalController;
 use App\Http\Controllers\Admin\ExpenseController;
-use App\Http\Controllers\Treasure\LaporanController;
+use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\Treasure\GajiController;
 use App\Http\Controllers\Owner\KaryawanController;
 use App\Http\Controllers\Owner\UnduhLaporanController;
@@ -66,7 +66,6 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
 });
 
 Route::prefix('treasurer')->middleware(['auth:sanctum'])->group(function () {
-    Route::get('/laporan-bulanan', [LaporanController::class, 'index']);
     Route::get('/gaji', [GajiController::class, 'index']);
     Route::post('/gaji/update', [GajiController::class, 'update']);
     Route::post('/gaji/sync', [GajiController::class, 'sync']);
@@ -82,6 +81,8 @@ Route::prefix('owner')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/laporan-pdf/preview', [UnduhLaporanController::class, 'preview']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
+
+Route::get('/laporan-bulanan', [LaporanController::class, 'index'])->middleware('auth:sanctum');
 
 Route::get('/owner/laporan-pdf/download', [UnduhLaporanController::class, 'download'])
         ->name('owner.laporan.download')

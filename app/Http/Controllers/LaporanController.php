@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Treasure;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Services\FinancialReportService;
@@ -16,8 +16,8 @@ class LaporanController extends Controller
     {
         try {
             $user = $request->user();
-            if (!$user || $user->role !== 'treasurer') {
-                throw new HttpException(403, 'Forbidden. Hanya bendahara yang dapat mengakses laporan bulanan.');
+            if (!$user) {
+                throw new HttpException(403, 'Forbidden. Hanya pengguna login yang dapat mengakses laporan bulanan.');
             }
 
             $validator = Validator::make($request->query(), [
@@ -46,6 +46,6 @@ class LaporanController extends Controller
         }
 
         return response()->json($response, $status);
-        
+
     }
 }

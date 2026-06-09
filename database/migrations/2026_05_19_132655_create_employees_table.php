@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('phone_number', 20)->nullable();
             $table->text('address')->nullable();
             $table->string('position', 50);
-            $table->integer('base_salary')->unsigned(); 
+            $table->integer('base_salary')->unsigned();
             $table->date('join_date');
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();

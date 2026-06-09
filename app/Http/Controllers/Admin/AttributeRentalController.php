@@ -27,7 +27,7 @@ class AttributeRentalController extends Controller
         $status = 200;
         try {
             $user = $request->user();
-            
+
             $query = BookingDetail::with(['booking.user', 'booking.field'])
                 ->whereNotIn('status', ['cancelled', 'closed field cancelled', 'finish'])
                 ->whereDate('play_date', '>=', Carbon::now()->toDateString());
@@ -210,7 +210,10 @@ class AttributeRentalController extends Controller
                     $data = ['success' => true, 'message' => 'Data riwayat berhasil diambil.', 'data' => []];
                     return response()->json($data, $status);
                 }
-                $query->whereIn('fk_field_id', $fieldIds);
+
+                $query->whereHas('attribute', function($q) use ($fieldIds) {
+                    $q->whereIn('fk_field_id', $fieldIds);
+                });
             }
 
             if ($search) {
@@ -236,7 +239,7 @@ class AttributeRentalController extends Controller
             ];
         } catch (Throwable $e) {
             $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal memuat data, silahkan coba lagi.'];
+            $data = ['success' => false, 'message' => 'Gagal memuat data, silahkan coba lagi.', 'error' => $e->getMessage()];
         }
         return response()->json($data, $status);
     }

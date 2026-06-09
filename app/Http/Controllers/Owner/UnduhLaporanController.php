@@ -14,21 +14,6 @@ use Laravel\Sanctum\PersonalAccessToken;
 
 class UnduhLaporanController extends Controller
 {
-    public function preview(Request $request, FinancialReportService $reportService): JsonResponse
-    {
-        $data = $this->validatedReportData($request, $reportService);
-
-        if ($data instanceof JsonResponse) { return $data; }
-
-        $data['download_url'] = URL::temporarySignedRoute(
-            'owner.laporan.download',
-            now()->addMinutes(30),
-            ['bulan' => $request->bulan, 'tahun' => $request->tahun, 'field_id' => $request->field_id]
-        );
-
-        return response()->json(['success' => true, 'message' => 'Preview laporan berhasil diambil.', 'data' => $data]);
-    }
-
     public function download(Request $request, FinancialReportService $reportService)
     {
         $status = 200;
