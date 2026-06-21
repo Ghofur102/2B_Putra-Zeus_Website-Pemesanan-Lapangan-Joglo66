@@ -61,18 +61,8 @@
             />
 
             <div>
-                <label for="password" class="block text-gray-700 text-sm font-medium mb-2">Password</label>
-                <div class="relative">
-                    <input type="password" id="password" name="password" placeholder="Masukkan password Anda" required
-                        class="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-tenant-md text-gray-800 placeholder-gray-400 focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none text-sm">
-
-                    <button type="button" class="toggle-password absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-primary transition-colors cursor-pointer" data-target="password">
-                        <svg class="w-5 h-5 eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                        </svg>
-                    </button>
-                </div>
+                <x-tenant-input name="password" label="Password" type="password" placeholder="Min. 8 karakter"
+                        required />
             </div>
 
             <div class="flex items-center gap-2 mt-2">
