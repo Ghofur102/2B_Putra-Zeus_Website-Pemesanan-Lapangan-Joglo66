@@ -3,16 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\Attribute;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
-use App\Http\Controllers\Traits\FieldAccessTrait;
+use App\Services\Admin\AttributeService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreAttributeRequest;
+use App\Http\Requests\Admin\UpdateAttributeRequest;
+use App\Http\Controllers\Traits\FieldAccessTrait;
+use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Database\QueryException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\UnprocessableEntityHttpException;
 use Throwable;
 
 class AttributeController extends Controller
@@ -22,236 +23,161 @@ class AttributeController extends Controller
     private const NOT_FOUND_MSG = 'Data atribut tidak ditemukan.';
     private const FORBIDDEN_MSG = 'Anda tidak memiliki akses ke atribut ini.';
 
+    protected AttributeService $attributeService;
+
+    public function __construct(AttributeService $attributeService)
+    {
+        $this->attributeService = $attributeService;
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $status = 200;
         try {
             $user = $request->user();
-            $search = $request->search;
-
-            $query = Attribute::with('field:id,name');
+            $fieldIds = [];
 
             if ($user && $user->role === 'worker') {
                 $fieldIds = $this->getAccessibleFieldIds($user);
                 if (empty($fieldIds)) {
-                    $data = ['success' => true, 'message' => 'Data atribut kosong.', 'data' => []];
-                    return response()->json($data, $status);
+                    return response()->json(['success' => true, 'message' => 'Data atribut kosong.', 'data' => []], 200);
                 }
-                $query->whereIn('fk_field_id', $fieldIds);
             }
 
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'LIKE', "%{$search}%")
-                      ->orWhere('type', 'LIKE', "%{$search}%");
-                });
-            }
+            $attributes = $this->attributeService->getAttributesByFields($fieldIds, $request->search);
 
-            $data = [
-                'success' => true,
-                'message' => 'Data atribut berhasil diambil.',
-                'data' => $query->latest()->get()
-            ];
+            return response()->json(['success' => true, 'message' => 'Data atribut berhasil diambil.', 'data' => $attributes], 200);
         } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal memuat data: ' . $e->getMessage()];
+            return response()->json(['success' => false, 'message' => 'Gagal memuat data: ' . $e->getMessage()], 500);
         }
-        return response()->json($data, $status);
     }
 
     public function show(Request $request, $id): JsonResponse
     {
-        $status = 200;
         try {
             $attribute = Attribute::with('field:id,name')->find($id);
-
             if (!$attribute) {
                 throw new NotFoundHttpException(self::NOT_FOUND_MSG);
             }
 
-            $user = $request->user();
-            if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
+            if (!$this->checkFieldAccess($request->user(), $attribute->fk_field_id)) {
                 throw new AccessDeniedHttpException(self::FORBIDDEN_MSG);
             }
 
-            $data = ['success' => true, 'message' => 'Detail atribut berhasil diambil.', 'data' => $attribute];
+            return response()->json(['success' => true, 'message' => 'Detail atribut berhasil diambil.', 'data' => $attribute], 200);
         } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->getStatusCode());
         } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal memuat data: ' . $e->getMessage()];
+            return response()->json(['success' => false, 'message' => 'Gagal memuat data: ' . $e->getMessage()], 500);
         }
-        return response()->json($data, $status);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreAttributeRequest $request): JsonResponse
     {
-        $status = 201;
         try {
-            $validator = Validator::make($request->all(), [
-                'fk_field_id' => 'required|exists:fields,id',
-                'name' => 'required|string|max:100',
-                'type' => 'required|in:sepatu,rompi,lainnya',
-                'stock' => 'required|integer|min:0',
-                'price_hour' => 'required|integer|min:0',
-            ]);
-
-            if ($validator->fails()) {
-                $status = 422;
-                $data = ['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()];
-                return response()->json($data, $status);
-            }
-
-            $user = $request->user();
-            if (!$this->checkFieldAccess($user, $request->fk_field_id)) {
+            if (!$this->checkFieldAccess($request->user(), $request->fk_field_id)) {
                 throw new AccessDeniedHttpException('Anda tidak memiliki akses ke lapangan ini.');
             }
 
-            $exists = Attribute::where('fk_field_id', $request->fk_field_id)->where('name', $request->name)->exists();
+            $attribute = $this->attributeService->createAttribute($request->validated());
 
-            if ($exists) {
-                throw new UnprocessableEntityHttpException('Nama atribut sudah digunakan.');
-            }
-
-            $attribute = Attribute::create([
-                'fk_field_id' => $request->fk_field_id,
-                'name' => $request->name,
-                'type' => $request->type,
-                'stock' => $request->stock,
-                'price_hour' => $request->price_hour,
-                'status' => 'active',
-            ]);
-
-            $data = ['success' => true, 'message' => 'Data atribut berhasil disimpan.', 'data' => $attribute];
+            return response()->json(['success' => true, 'message' => 'Data atribut berhasil disimpan.', 'data' => $attribute], 201);
         } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->getStatusCode());
         } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal menyimpan data: ' . $e->getMessage()];
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan data: ' . $e->getMessage()], 500);
         }
-        return response()->json($data, $status);
     }
 
-    public function update(Request $request, $id): JsonResponse
+    public function update(UpdateAttributeRequest $request, $id): JsonResponse
     {
-        $status = 200;
         try {
-            $validator = Validator::make($request->all(), [
-                'name' => 'sometimes|string|max:100',
-                'type' => 'sometimes|in:sepatu,rompi,lainnya',
-                'stock' => 'sometimes|integer|min:0',
-                'price_hour' => 'sometimes|integer|min:0',
-                'status' => 'sometimes|in:active,inactive',
-            ]);
-
-            if ($validator->fails()) {
-                $status = 422;
-                $data = ['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()];
-                return response()->json($data, $status);
-            }
-
             $attribute = Attribute::find($id);
-
             if (!$attribute) {
                 throw new NotFoundHttpException(self::NOT_FOUND_MSG);
             }
 
-            $user = $request->user();
-            if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
+            if (!$this->checkFieldAccess($request->user(), $attribute->fk_field_id)) {
                 throw new AccessDeniedHttpException(self::FORBIDDEN_MSG);
             }
 
-            if ($request->filled('name') && $request->name !== $attribute->name) {
-                $exists = Attribute::where('fk_field_id', $attribute->fk_field_id)
-                    ->where('name', $request->name)
-                    ->where('id', '!=', $id)
-                    ->exists();
+            $updated = $this->attributeService->updateAttribute($attribute, $request->validated());
 
-                if ($exists) {
-                    throw new UnprocessableEntityHttpException('Nama atribut sudah digunakan.');
-                }
-            }
-
-            $attribute->update($request->only(['name', 'type', 'stock', 'price_hour', 'status']));
-
-            $data = ['success' => true, 'message' => 'Data atribut berhasil diperbarui.', 'data' => $attribute->fresh()];
+            return response()->json(['success' => true, 'message' => 'Data atribut berhasil diperbarui.', 'data' => $updated], 200);
         } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->getStatusCode());
         } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal menyimpan data: ' . $e->getMessage()];
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan data: ' . $e->getMessage()], 500);
         }
-        return response()->json($data, $status);
     }
 
     public function destroy(Request $request, $id): JsonResponse
     {
         $status = 200;
+        $data = [];
+
         try {
             $attribute = Attribute::find($id);
-
             if (!$attribute) {
                 throw new NotFoundHttpException(self::NOT_FOUND_MSG);
             }
 
-            $user = $request->user();
-            if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
+            if (!$this->checkFieldAccess($request->user(), $attribute->fk_field_id)) {
                 throw new AccessDeniedHttpException(self::FORBIDDEN_MSG);
             }
 
             $attribute->delete();
 
-            $data = ['success' => true, 'message' => 'Data atribut berhasil dihapus.'];
+            $data = [
+                'success' => true,
+                'message' => 'Data atribut berhasil dihapus.'
+            ];
         } catch (HttpException $e) {
             $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
+            $data = [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
         } catch (QueryException $e) {
             $status = ($e->getCode() == "23000") ? 400 : 500;
             $msg = ($e->getCode() == "23000")
                 ? 'Atribut tidak dapat dihapus karena masih digunakan pada data penyewaan atau transaksi.'
                 : 'Gagal menghapus data (Error Database).';
-            $data = ['success' => false, 'message' => $msg];
+
+            $data = [
+                'success' => false,
+                'message' => $msg
+            ];
         } catch (Throwable $e) {
             $status = 500;
-            $data = ['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()];
+            $data = [
+                'success' => false,
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ];
         }
+
         return response()->json($data, $status);
     }
 
     public function toggleStatus(Request $request, $id): JsonResponse
     {
-        $status = 200;
         try {
             $attribute = Attribute::find($id);
-
             if (!$attribute) {
                 throw new NotFoundHttpException(self::NOT_FOUND_MSG);
             }
 
-            $user = $request->user();
-            if (!$this->checkFieldAccess($user, $attribute->fk_field_id)) {
+            if (!$this->checkFieldAccess($request->user(), $attribute->fk_field_id)) {
                 throw new AccessDeniedHttpException(self::FORBIDDEN_MSG);
             }
 
-            $newStatus = $attribute->status === 'active' ? 'inactive' : 'active';
-            $attribute->update(['status' => $newStatus]);
+            $toggled = $this->attributeService->toggleAttributeStatus($attribute);
+            $msg = ($toggled->status === GeneralStatus::ACTIVE->value) ? 'Atribut diaktifkan.' : 'Atribut dinonaktifkan.';
 
-            $msg = ($newStatus === 'active') ? 'Atribut diaktifkan.' : 'Atribut dinonaktifkan.';
-            $data = [
-                'success' => true,
-                'message' => $msg,
-                'data' => $attribute->fresh()
-            ];
+            return response()->json(['success' => true, 'message' => $msg, 'data' => $toggled], 200);
         } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->getStatusCode());
         } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal mengubah status: ' . $e->getMessage()];
+            return response()->json(['success' => false, 'message' => 'Gagal mengubah status: ' . $e->getMessage()], 500);
         }
-        return response()->json($data, $status);
     }
 }

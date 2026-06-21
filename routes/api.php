@@ -61,7 +61,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
 
     Route::get('/list-expense', [ExpenseController::class, 'listExpense']);
     Route::post('/create-expense', [ExpenseController::class, 'addExpense']);
-    Route::post('/delete-expense/{id}', [ExpenseController::class, 'detailExpense']);
+    Route::post('/delete-expense/{id}', [ExpenseController::class, 'destroy']);
     Route::get('/expense-categories', [ExpenseController::class, 'getCategories']);
 });
 

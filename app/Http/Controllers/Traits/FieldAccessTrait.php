@@ -2,68 +2,75 @@
 
 namespace App\Http\Controllers\Traits;
 
+use App\Enums\UserRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 trait FieldAccessTrait
 {
-    private function checkFieldAccess($user, $fieldId): bool
+    protected function checkFieldAccess($user, $fieldId): bool
     {
-        if ($user && $user->role === 'worker') {
-            return DB::table('field_admins')
+        $hasAccess = true;
+
+        if ($user && $user->role === UserRole::WORKER->value) {
+            $hasAccess = DB::table('field_admins')
                 ->where('fk_user_id', $user->id)
                 ->where('fk_field_id', $fieldId)
                 ->exists();
         }
-        return true;
+
+        return $hasAccess;
     }
 
-    private function getAccessibleFieldIds($user): array
+    protected function getAccessibleFieldIds($user): array
     {
-        if ($user && $user->role === 'worker') {
-            return DB::table('field_admins')
+        $accessibleIds = [];
+
+        if ($user && $user->role === UserRole::WORKER->value) {
+            $accessibleIds = DB::table('field_admins')
                 ->where('fk_user_id', $user->id)
                 ->pluck('fk_field_id')
                 ->toArray();
         }
-        return [];
+
+        return $accessibleIds;
     }
 
-    private function ok($message, $data = null, $statusCode = 200): JsonResponse
+    protected function ok($message, $data = null, $statusCode = 200): JsonResponse
     {
         return response()->json([
             'success' => true,
             'message' => $message,
-            'data' => $data,
+            'data'    => $data,
         ], $statusCode);
     }
 
-    private function fail($message, $statusCode = 500): JsonResponse
+    protected function fail($message, $statusCode = 500): JsonResponse
     {
         return response()->json([
             'success' => false,
             'message' => $message,
-            'data' => null,
+            'data'    => null,
         ], $statusCode);
     }
 
-    private function notFound($message): JsonResponse
+    protected function notFound($message): JsonResponse
     {
         return $this->fail($message, 404);
     }
 
-    private function forbidden($message): JsonResponse
+    protected function forbidden($message): JsonResponse
     {
         return $this->fail($message, 403);
     }
 
-    private function validationError($validator): JsonResponse
+    protected function validationError($validator): JsonResponse
     {
         return response()->json([
             'success' => false,
             'message' => $validator->errors()->first(),
-            'data' => null,
-            'errors' => $validator->errors(),
+            'data'    => null,
+            'errors'  => $validator->errors(),
         ], 422);
     }
 }

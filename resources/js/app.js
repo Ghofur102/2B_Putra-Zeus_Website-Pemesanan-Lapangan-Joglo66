@@ -1,18 +1,23 @@
 import './bootstrap';
+import { initializeMobileNavbar } from './modules/navbar';
+import { initializeAlertDismissals } from './modules/alerts';
+import { initializeDashboard } from './modules/dashboard';
+import { initializePasswordToggle } from './modules/auth';
+import { initializeBookingApp } from './modules/booking';
+import { initializeCheckout } from './modules/checkout';
+import { initializeBookingHistory } from './modules/booking_history';
+import { initializeReschedule } from './modules/reschedule';
+import { initializeCancelForm, initializeCancelReview } from './modules/cancel';
 
-// Logika Navbar Mobile Toggle
-const mobileMenuBtn = document.getElementById('mobile-menu-button');
-const mobileMenu = document.getElementById('mobile-menu');
-const iconClosed = document.getElementById('icon-menu-closed');
-const iconOpen = document.getElementById('icon-menu-open');
-
-if (mobileMenuBtn && mobileMenu) {
-    mobileMenuBtn.addEventListener('click', () => {
-        mobileMenu.classList.toggle('hidden');
-
-        iconClosed.classList.toggle('hidden');
-        iconClosed.classList.toggle('block');
-        iconOpen.classList.toggle('hidden');
-        iconOpen.classList.toggle('block');
-    });
-}
+document.addEventListener('DOMContentLoaded', () => {
+    initializeMobileNavbar();
+    initializeAlertDismissals();
+    initializeDashboard();
+    initializePasswordToggle();
+    initializeBookingApp();
+    initializeCheckout();
+    initializeBookingHistory();
+    initializeReschedule();
+    initializeCancelForm();
+    initializeCancelReview();
+});

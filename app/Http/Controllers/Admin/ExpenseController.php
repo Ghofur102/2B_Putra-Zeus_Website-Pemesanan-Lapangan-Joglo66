@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Expense;
+use App\Http\Requests\Admin\StoreExpenseRequest;
+use App\Services\Admin\ExpenseService;
+use App\Enums\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -14,115 +15,99 @@ class ExpenseController extends Controller
 {
     use \App\Http\Controllers\Traits\FieldAccessTrait;
 
+    protected ExpenseService $expenseService;
+
+    public function __construct(ExpenseService $expenseService)
+    {
+        $this->expenseService = $expenseService;
+    }
+
     public function listExpense(Request $request): JsonResponse
     {
+        $status = 200;
+        $data = [];
+
         try {
             $user = $request->user();
-            $query = Expense::query();
+            $fieldIds = [];
 
-            if ($user && $user->role === 'worker') {
-                $fieldIds = DB::table('field_admins')->where('fk_user_id', $user->id)->pluck('fk_field_id');
-                $query->whereIn('fk_field_id', $fieldIds);
+            if ($user && $user->role === UserRole::WORKER->value) {
+                $fieldIds = DB::table('field_admins')->where('fk_user_id', $user->id)->pluck('fk_field_id')->toArray();
             }
 
-            $expenses = $query->latest('expense_date')->get()->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'title' => $item->category,
-                    'category' => $item->category,
-                    'amount' => (int)$item->amount,
-                    'date' => $item->expense_date,
-                    'note' => $item->note ?? '-',
-                    'proof' => !empty($item->proof_photo),
-                    'image' => $item->proof_photo ? asset('storage/' . $item->proof_photo) : null,
-                ];
-        });
-
-            return response()->json(['success' => true, 'data' => $expenses]);
+            $expenses = $this->expenseService->getExpenses($fieldIds);
+            $data = ['success' => true, 'data' => $expenses];
         } catch (Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memuat data pengeluaran.'], 500);
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal memuat data pengeluaran.'];
         }
+
+        return response()->json($data, $status);
     }
 
     public function getCategories(Request $request): JsonResponse
     {
-        try {
-            $user = $request->user();
-            $query = Expense::query();
-
-            if ($user && $user->role === 'worker') {
-                $fieldIds = DB::table('field_admins')->where('fk_user_id', $user->id)->pluck('fk_field_id');
-                $query->whereIn('fk_field_id', $fieldIds);
-            }
-
-            $categories = $query->distinct()->pluck('category')->filter()->values()->toArray();
-
-            return response()->json(['success' => true, 'data' => $categories]);
-        } catch (Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal memuat daftar kategori.'], 500);
-        }
-    }
-
-    public function addExpense(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'category' => 'required|string',
-            'nominal' => 'required|integer|min:0',
-            'date' => 'required|date',
-            'note' => 'nullable|string',
-            'image' => 'nullable|image|max:2048'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => 'Validasi gagal.', 'errors' => $validator->errors()], 422);
-        }
+        $status = 200;
+        $data = [];
 
         try {
             $user = $request->user();
-            $fieldId = 1;
+            $fieldIds = [];
 
-            if ($user && $user->role === 'worker') {
-                $assignedField = DB::table('field_admins')->where('fk_user_id', $user->id)->first();
-                if ($assignedField) {
-                    $fieldId = $assignedField->fk_field_id;
-                }
+            if ($user && $user->role === UserRole::WORKER->value) {
+                $fieldIds = DB::table('field_admins')->where('fk_user_id', $user->id)->pluck('fk_field_id')->toArray();
             }
 
-            $imagePath = null;
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store('expenses', 'public');
-            }
-
-            $expense = Expense::create([
-                'fk_field_id' => $fieldId,
-                'fk_user_id' => $user->id,
-                'category' => $request->category,
-                'amount' => $request->nominal,
-                'expense_date' => $request->date,
-                'proof_photo' => $imagePath,
-                'note' => $request->note,
-                'generate_at' => now(),
-            ]);
-
-            return response()->json(['success' => true, 'message' => 'Data pengeluaran berhasil disimpan.', 'data' => $expense], 201);
+            $categories = $this->expenseService->getUniqueCategories($fieldIds);
+            $data = ['success' => true, 'data' => $categories];
         } catch (Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal menyimpan data ke database.'], 500);
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal memuat daftar kategori.'];
         }
+
+        return response()->json($data, $status);
     }
 
-    public function detailExpense(Request $request, $id): JsonResponse
+    public function addExpense(StoreExpenseRequest $request): JsonResponse
     {
-        try {
-            $expense = Expense::find($id);
-            if (!$expense) {
-                return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
-            }
+        $status = 201;
+        $data = [];
 
-            $expense->delete();
-            return response()->json(['success' => true, 'message' => 'Data pengeluaran berhasil dihapus.']);
+        try {
+            $expense = $this->expenseService->createExpense($request->validated(), $request->user());
+
+            $data = [
+                'success' => true,
+                'message' => 'Data pengeluaran berhasil disimpan.',
+                'data'    => $expense
+            ];
         } catch (Throwable $e) {
-            return response()->json(['success' => false, 'message' => 'Gagal menghapus data.'], 500);
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal menyimpan data ke database.'];
         }
+
+        return response()->json($data, $status);
+    }
+
+    public function destroy(Request $request, $id): JsonResponse
+    {
+        $status = 200;
+        $data = [];
+
+        try {
+            $deleted = $this->expenseService->deleteExpense((int)$id);
+
+            if (!$deleted) {
+                $status = 404;
+                $data = ['success' => false, 'message' => 'Data tidak ditemukan.'];
+            } else {
+                $data = ['success' => true, 'message' => 'Data pengeluaran berhasil dihapus.'];
+            }
+        } catch (Throwable $e) {
+            $status = 500;
+            $data = ['success' => false, 'message' => 'Gagal menghapus data.'];
+        }
+
+        return response()->json($data, $status);
     }
 }

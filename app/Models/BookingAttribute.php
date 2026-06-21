@@ -14,7 +14,7 @@ class BookingAttribute extends Model
 
     protected $fillable = [
         'fk_booking_id', 'fk_attribute_id', 'quantity', 'price', 'total',
-        'transaction_date', 'status', 'customer_name', 'customer_phone', 
+        'transaction_date', 'status', 'customer_name', 'customer_phone',
         'duration_hours', 'reason',
     ];
 

@@ -2,11 +2,22 @@
 
 @theme {
     --color-primary: #3a5a8c;
+    --color-primary-hover: #263d60;
+    --color-primary-dark: #2c4670;
+    --color-primary-light: #f0f4f9;
+
+    --radius-tenant-sm: 0.375rem;
+    --radius-tenant-md: 0.5rem;
+    --radius-tenant-lg: 0.75rem;
+    --radius-tenant-full: 9999px;
+
+    --shadow-tenant-sm: 0 1px 3px 0 rgba(58, 90, 140, 0.1), 0 1px 2px -1px rgba(58, 90, 140, 0.1);
+    --shadow-tenant-md: 0 4px 6px -1px rgba(58, 90, 140, 0.12), 0 2px 4px -2px rgba(58, 90, 140, 0.12);
 }
 
 @layer components {
     .calendar-day {
-        @apply aspect-square flex items-center justify-center rounded-md text-sm cursor-pointer transition-all border border-transparent;
+        @apply aspect-square flex items-center justify-center rounded-tenant-sm text-sm cursor-pointer transition-all border border-transparent;
     }
     .calendar-day:hover:not(.past):not(.empty) {
         @apply bg-gray-100 border-gray-300;
@@ -18,25 +29,23 @@
         @apply text-gray-300 cursor-not-allowed;
     }
     .calendar-day.today {
-        @apply font-bold text-[#3a5a8c] bg-blue-50;
+        @apply font-bold text-primary bg-primary-light;
     }
     .calendar-day.selected {
-        @apply !bg-[#3a5a8c] !text-white font-bold shadow-md !border-[#3a5a8c];
+        @apply !bg-primary !text-white font-bold shadow-tenant-md !border-primary;
     }
-    .slot-pill.kosong:hover {
-        @apply border-[#3a5a8c] bg-slate-50 text-black;
-    }
+
     .slot-pill {
-        @apply p-2.5 border border-gray-200 rounded-lg text-center cursor-pointer transition-all text-sm font-medium;
+        @apply p-2.5 border border-gray-200 rounded-tenant-md text-center cursor-pointer transition-all text-sm font-medium;
     }
     .slot-pill.kosong {
         @apply bg-white text-gray-600;
     }
     .slot-pill.kosong:hover {
-        @apply border-[#3a5a8c] bg-slate-50;
+        @apply border-primary bg-slate-50 text-black;
     }
     .slot-pill.selected {
-        @apply bg-[#3a5a8c] text-white border-[#3a5a8c] shadow-sm;
+        @apply bg-primary text-white border-primary shadow-tenant-sm;
     }
     .slot-pill.terisi {
         @apply bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200;
@@ -44,6 +53,7 @@
     .slot-pill.tutup {
         @apply bg-red-100 text-red-500 cursor-not-allowed border-red-300;
     }
-    .slot-pill.lewat { @apply bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-70; }
-
+    .slot-pill.lewat {
+        @apply bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200 opacity-70;
+    }
 }

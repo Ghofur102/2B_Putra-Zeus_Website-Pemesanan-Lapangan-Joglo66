@@ -3,49 +3,56 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\GetMonthlyReportRequest;
 use App\Services\FinancialReportService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Validator;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 class LaporanController extends Controller
 {
-    public function index(Request $request, FinancialReportService $reportService): JsonResponse
+    protected FinancialReportService $reportService;
+
+    public function __construct(FinancialReportService $reportService)
     {
+        $this->reportService = $reportService;
+    }
+
+    public function index(GetMonthlyReportRequest $request): JsonResponse
+    {
+        $status = 200;
+        $data = [];
+
         try {
             $user = $request->user();
             if (!$user) {
                 throw new HttpException(403, 'Forbidden. Hanya pengguna login yang dapat mengakses laporan bulanan.');
             }
 
-            $validator = Validator::make($request->query(), [
-                'bulan' => ['required', 'integer', 'min:1', 'max:12'],
-                'tahun' => ['required', 'integer', 'min:2000', 'max:' . date('Y')],
-            ]);
+            $validated = $request->validated();
 
-            if ($validator->fails()) {
-                return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
-            }
+            $reportData = $this->reportService->getMonthlyData((int) $validated['bulan'], (int) $validated['tahun']);
 
-            $data = $reportService->getMonthlyData((int) $request->bulan, (int) $request->tahun);
-
-            return response()->json([
+            $data = [
                 'success' => true,
                 'message' => 'Data laporan bulanan berhasil diambil.',
-                'data'    => $data,
-            ], 200);
-
+                'data'    => $reportData,
+            ];
         } catch (HttpException $e) {
             $status = $e->getStatusCode();
-            $response = ['success' => false, 'message' => $e->getMessage()];
+            $data = [
+                'success' => false,
+                'message' => $e->getMessage()
+            ];
         } catch (Throwable $e) {
             $status = 500;
-            $response = ['success' => false, 'message' => 'Gagal mengambil data laporan bulanan.', 'error' => $e->getMessage()];
+            $data = [
+                'success' => false,
+                'message' => 'Gagal mengambil data laporan bulanan.',
+                'error'   => $e->getMessage()
+            ];
         }
 
-        return response()->json($response, $status);
-
+        return response()->json($data, $status);
     }
 }

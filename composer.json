@@ -13,6 +13,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "nyholm/psr7": "^1.8",
+        "predis/predis": "^3.5",
         "railsware/mailtrap-php": "^3.11",
         "resend/resend-laravel": "^1.3",
         "symfony/http-client": "^8.0"

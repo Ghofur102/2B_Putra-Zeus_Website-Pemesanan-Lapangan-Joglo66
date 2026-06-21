@@ -3,148 +3,76 @@
 namespace App\Http\Controllers\Tenant\Booking;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Tenant\Booking\CancelBookingActionRequest;
+use App\Services\Tenant\Booking\TenantCancelBookingService;
 use App\Models\BookingDetail;
-use App\Models\BookingCancelled;
-use App\Models\Payment;
-use Carbon\Carbon;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\View\View;
 use Illuminate\Support\Facades\Auth;
+use Throwable;
+use Illuminate\Support\Facades\Cache;
 
 class CancelledDetailBookingController extends Controller
 {
-    const PAYMENT_DP = 'down payment';
-    const PAYMENT_FINAL = 'final payment';
-    const PAYMENT_RESCHEDULE_FEE = 'reschedule fee';
-    const PAYMENT_REFUND = 'refund';
-    const STATUS_REFUND_REFUNDABLE = 'Full';
-    const STATUS_REFUND_NON_REFUNDABLE = 'None';
+    protected TenantCancelBookingService $cancelService;
 
-    public function formInput($detail_booking_id)
+    public function __construct(TenantCancelBookingService $cancelService)
     {
-        $detail = BookingDetail::with('booking.field')->findOrFail($detail_booking_id);
-        $this->authorizeAccess($detail);
-
-        // PERBAIKAN: Gunakan startOfDay()
-        $playDate = Carbon::parse($detail->play_date)->startOfDay();
-        $daysUntilPlay = Carbon::now()->startOfDay()->diffInDays($playDate, false);
-        $netPaid = $this->getPaymentTotals($detail);
-
-        $isRefundable = $daysUntilPlay >= 3;
-        $refundAmount = $isRefundable ? $netPaid : 0;
-
-        return view('tenant.booking.cancel.index', compact(
-            'detail', 'playDate', 'daysUntilPlay', 'netPaid', 'isRefundable', 'refundAmount'
-        ));
+        $this->cancelService = $cancelService;
     }
 
-    public function confirmation(Request $request)
+    public function formInput($detail_booking_id): View
     {
-        $validated = $request->validate([
-            'detail_booking_id' => 'required|exists:mysql_joglo66_app.booking_details,id',
-            'reason' => 'required|string|max:500',
-        ]);
-
-        $detail = BookingDetail::with('booking')->findOrFail($validated['detail_booking_id']);
+        $detail = BookingDetail::query()->with('booking.field')->findOrFail($detail_booking_id);
         $this->authorizeAccess($detail);
 
-        // PERBAIKAN: Gunakan startOfDay()
-        $playDate = Carbon::parse($detail->play_date)->startOfDay();
-        $daysUntilPlay = Carbon::now()->startOfDay()->diffInDays($playDate, false);
-        $netPaid = $this->getPaymentTotals($detail);
+        $cancellationData = $this->cancelService->getCancellationData($detail);
 
-        $isRefundable = $daysUntilPlay >= 3;
-        $refundAmount = $isRefundable ? $netPaid : 0;
-
-        return view('tenant.booking.cancel.review', compact(
-            'detail', 'validated', 'isRefundable', 'refundAmount', 'netPaid', 'daysUntilPlay'
-        ));
+        return view('tenant.booking.cancel.index', array_merge([
+            'detail' => $detail
+        ], $cancellationData));
     }
 
-    public function process(Request $request)
+    public function confirmation(CancelBookingActionRequest $request): View
     {
-        $validated = $request->validate([
-            'detail_booking_id' => 'required|exists:mysql_joglo66_app.booking_details,id',
-            'reason' => 'required|string|max:500',
-        ]);
+        $validated = $request->validated();
+        $detail = BookingDetail::query()->with('booking')->findOrFail($validated['detail_booking_id']);
+        $this->authorizeAccess($detail);
+
+        $cancellationData = $this->cancelService->getCancellationData($detail);
+
+        return view('tenant.booking.cancel.review', array_merge([
+            'detail'    => $detail,
+            'validated' => $validated
+        ], $cancellationData));
+    }
+
+    public function process(CancelBookingActionRequest $request): RedirectResponse
+    {
+        $response = redirect()->back();
+        $validated = $request->validated();
 
         try {
-            $detail = BookingDetail::with('booking')->findOrFail($validated['detail_booking_id']);
+            $detail = BookingDetail::query()->with('booking')->findOrFail($validated['detail_booking_id']);
             $this->authorizeAccess($detail);
 
-            if ($detail->status === 'cancelled') {
-                throw new \DomainException('Booking ini sudah dibatalkan sebelumnya.');
-            }
+            $this->cancelService->processCancellation($detail, $validated['reason']);
 
-            // PERBAIKAN: Gunakan startOfDay() untuk menghitung status Refund
-            $playDate = Carbon::parse($detail->play_date)->startOfDay();
-            $daysUntilPlay = Carbon::now()->startOfDay()->diffInDays($playDate, false);
-
-            $isRefundable = $daysUntilPlay >= 3;
-            $refundAmount = $isRefundable ? $this->getPaymentTotals($detail) : 0;
-
-            DB::connection('mysql_joglo66_app')->transaction(function () use ($detail, $validated, $isRefundable, $refundAmount) {
-                BookingCancelled::create([
-                    'fk_booking_detail_id' => $detail->id,
-                    'cancle_date' => now()->toDateString(),
-                    'reason' => $validated['reason'],
-                    'status_refund' => $isRefundable ? self::STATUS_REFUND_REFUNDABLE : self::STATUS_REFUND_NON_REFUNDABLE,
-                ]);
-
-                $detail->update(['status' => 'cancelled']);
-
-                if ($isRefundable && $refundAmount > 0) {
-                    Payment::create([
-                        'fk_booking_id' => $detail->fk_booking_id,
-                        'fk_booking_detail_id' => $detail->id,
-                        'reference_id' => 'CNL-REF-'.strtoupper(Str::random(10)),
-                        'payment_type' => self::PAYMENT_REFUND,
-                        'method' => 'cash',
-                        'amount' => $refundAmount,
-                        'status' => 'success',
-                        'paid_at' => now(),
-                    ]);
-                }
-            });
-
-            return redirect()->route('tenant.booking.history.show', $detail->fk_booking_id)
+            Cache::forget("tenant_nearest_bookings_field_{$request->field_id}");
+            
+            $response = redirect()->route('tenant.booking.history.show', $detail->fk_booking_id)
                 ->with('success', 'Booking berhasil dibatalkan.');
-
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Gagal membatalkan booking: '.$e->getMessage());
+        } catch (Throwable $e) {
+            $response = redirect()->back()->with('error', 'Gagal membatalkan booking: ' . $e->getMessage());
         }
+
+        return $response;
     }
 
-    private function authorizeAccess($detail)
+    private function authorizeAccess(BookingDetail $detail): void
     {
         if ($detail->booking->fk_user_id !== Auth::id()) {
             abort(403, 'Anda tidak memiliki akses ke booking ini.');
         }
-    }
-
-    private function getPaymentTotals(BookingDetail $detail): int
-    {
-        $successfulPayments = Payment::where('fk_booking_id', $detail->fk_booking_id)
-            ->where('status', 'success')
-            ->get();
-
-        $hasFinal = $successfulPayments->where('payment_type', self::PAYMENT_FINAL)->isNotEmpty();
-        $hasDP = $successfulPayments->where('payment_type', self::PAYMENT_DP)->isNotEmpty();
-
-        $paidForThisSlot = 0;
-
-        if ($hasFinal) {
-            $paidForThisSlot = $detail->price;
-        } elseif ($hasDP) {
-            $paidForThisSlot = $detail->price / 2;
-        }
-
-        $refunded = Payment::where('fk_booking_detail_id', $detail->id)
-            ->where('status', 'success')
-            ->where('payment_type', self::PAYMENT_REFUND)
-            ->sum('amount');
-
-        return $paidForThisSlot - $refunded;
     }
 }

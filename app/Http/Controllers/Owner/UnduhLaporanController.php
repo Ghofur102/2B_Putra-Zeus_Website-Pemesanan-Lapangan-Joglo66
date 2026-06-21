@@ -3,73 +3,42 @@
 namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
-use App\Services\FinancialReportService;
-use Carbon\Carbon;
-use Illuminate\Http\Request;
+use App\Http\Requests\Owner\DownloadReportRequest;
+use App\Services\Owner\UnduhLaporanService;
 use Illuminate\Http\Response;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Facades\Validator;
-use Laravel\Sanctum\PersonalAccessToken;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class UnduhLaporanController extends Controller
 {
-    public function download(Request $request, FinancialReportService $reportService)
+    protected UnduhLaporanService $unduhLaporanService;
+
+    public function __construct(UnduhLaporanService $unduhLaporanService)
+    {
+        $this->unduhLaporanService = $unduhLaporanService;
+    }
+
+    public function download(DownloadReportRequest $request): Response
     {
         $status = 200;
         $headers = [];
-        $tokenString = $request->query('t');
-        $token = $tokenString ? PersonalAccessToken::findToken($tokenString) : null;
+        $content = '';
 
-        if (!$tokenString) {
-            $status = 401;
-            $response = 'Akses Ditolak: Token keamanan tidak ditemukan.';
-        } elseif (!$token || !$token->tokenable || $token->tokenable->role !== 'owner') {
-            $status = 403;
-            $response = 'Akses Ditolak: Sesi Anda tidak valid atau Anda bukan Owner.';
-        } else {
-            $data = $this->validatedReportData($request, $reportService);
+        try {
+            $result = $this->unduhLaporanService->generatePdfReport($request->validated());
 
-            if ($data instanceof JsonResponse) {
-                $status = 404;
-                $response = 'Data laporan gagal divalidasi.';
-            } else {
-                $html = view('pdf.laporan-bulanan', [
-                'monthName'     => $data['month'],
-                'year'          => $data['year'],
-                'total_income'  => $data['total_income'],
-                'total_expense' => $data['total_expense'],
-                'net_profit'    => $data['net_profit'],
-                'income'        => $data['details']['income'],
-                'expense'       => $data['details']['expense'],
-                'generateAt'    => Carbon::now()->format('d/m/Y H:i'),
-                ])->render();
-
-                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHtml($html);
-                $response = $pdf->output();
-
-                $headers = [
-                    'Content-Type'        => 'application/pdf',
-                    'Content-Disposition' => 'attachment; filename="laporan-bulanan-' . $request->bulan . '-' . $request->tahun . '.pdf"',
-                ];
-            }
-        }
-    return $status === 200
-        ? new Response($response, $status, $headers)
-        : response($response, $status);
-    }
-
-    private function validatedReportData(Request $request, FinancialReportService $reportService): array|JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'bulan' => ['required', 'integer', 'min:1', 'max:12'],
-            'tahun' => ['required', 'integer', 'min:2000', 'max:' . date('Y')],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'message' => 'Validasi gagal', 'errors' => $validator->errors()], 422);
+            $content = $result['content'];
+            $headers = $result['headers'];
+        } catch (HttpException $e) {
+            $status = $e->getStatusCode();
+            $content = $e->getMessage();
+            $headers = ['Content-Type' => 'text/plain'];
+        } catch (Throwable $e) {
+            $status = 500;
+            $content = 'Terjadi kesalahan internal server: ' . $e->getMessage();
+            $headers = ['Content-Type' => 'text/plain'];
         }
 
-        return $reportService->getMonthlyData((int) $request->bulan, (int) $request->tahun);
+        return response($content, $status, $headers);
     }
 }
