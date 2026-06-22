@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use UnexpectedValueException;
+use Illuminate\Support\Facades\Cache;
 
 class TenantBookingService
 {
@@ -91,6 +92,8 @@ class TenantBookingService
                         'price'           => $slot['harga'],
                         'status'          => BookingDetailStatus::WAITING->value,
                     ]);
+                    Cache::forget("tenant_nearest_bookings_field_{$validated['field_id']}");
+                    Cache::forget("tenant_slots_field_{$validated['field_id']}_{$playDate}");
                 }
             }
 
@@ -109,11 +112,22 @@ class TenantBookingService
             ]);
 
             return [
-                'booking'     => $booking,
-                'reference'   => $duitkuResponse->reference,
-                'amountToPay' => $amountToPay,
+                'booking' => $booking,
             ];
         });
+    }
+
+    public function getBookingSuccessData(int $bookingId, int $userId): Booking
+    {
+        $booking = Booking::query()
+            ->with(['details', 'field'])
+            ->findOrFail($bookingId);
+
+        if ($booking->fk_user_id !== $userId) {
+            throw new AccessDeniedHttpException('Anda tidak memiliki otorisasi untuk melihat nota pemesanan ini.');
+        }
+
+        return $booking;
     }
 
     private function validateSlotsAvailability(int $fieldId, array $groupedSlots): void

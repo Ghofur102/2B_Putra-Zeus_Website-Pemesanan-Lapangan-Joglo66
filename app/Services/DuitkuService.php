@@ -27,7 +27,7 @@ class DuitkuService
             'phoneNumber'       => $booking->customer_phone,
             'customerVaName'    => $booking->team_name,
             'callbackUrl'       => env('APP_URL') . '/api/duitku/callback',
-            'returnUrl'         => env('APP_URL') . '/booking/success',
+            'returnUrl'         => route('tenant.booking.success', ['booking_id' => $booking->id]),
             'expiryPeriod'      => 60
         ];
 

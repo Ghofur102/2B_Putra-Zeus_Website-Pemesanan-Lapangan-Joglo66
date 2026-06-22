@@ -72,9 +72,24 @@ class RescheduleDetailBookingController extends Controller
             $detail = BookingDetail::query()->with('booking')->findOrFail($detailId);
 
             $this->authorizeAccess($detail);
-            $this->rescheduleService->executeReschedule($detail, $request->validated());
 
-            Cache::forget("tenant_nearest_bookings_field_{$request->field_id}");
+            $fieldId = $detail->booking->fk_field_id ?? $request->field_id;
+            $oldDate = $detail->play_date;
+
+            $validatedData = $request->validated();
+            $newDate = $validatedData['new_play_date'] ?? $request->new_play_date;
+
+            $this->rescheduleService->executeReschedule($detail, $validatedData);
+
+            if ($fieldId) {
+                Cache::forget("tenant_nearest_bookings_field_{$fieldId}");
+            }
+
+            Cache::forget("tenant_slots_field_{$fieldId}_{$oldDate}");
+
+            if ($newDate) {
+                Cache::forget("tenant_slots_field_{$fieldId}_{$newDate}");
+            }
 
             $response = redirect()->route(self::ROUTE_HISTORY_SHOW, $detail->fk_booking_id)
                 ->with('success', 'Reschedule berhasil! Jadwal booking telah diubah.');

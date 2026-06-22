@@ -8,6 +8,7 @@ use App\Enums\BookingDetailStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Cache;
 
 class TenantScheduleService
 {
@@ -19,36 +20,40 @@ class TenantScheduleService
 
     public function getAvailableHourlySlots(int $fieldId, string $date): array
     {
-        $dayName = strtolower(Carbon::parse($date)->format('l'));
+        $cacheKey = "tenant_slots_field_{$fieldId}_{$date}";
 
-        $fieldPrices = FieldPrice::query()
-            ->where('fk_field_id', $fieldId)
-            ->where('day_type', $dayName)
-            ->get();
+        return Cache::remember($cacheKey, now()->addDay(), function () use ($fieldId, $date) {
+            $dayName = strtolower(Carbon::parse($date)->format('l'));
 
-        $bookedSlots = BookingDetail::query()
-            ->whereHas('booking', function ($query) use ($fieldId) {
-                /** @var \Illuminate\Database\Eloquent\Builder $query */
-                $query->where('fk_field_id', $fieldId);
-            })
-            ->whereDate('play_date', $date)
-            ->whereNotIn('status', [BookingDetailStatus::CANCELLED->value, 'failed', 'expired'])
-            ->get(['start_play_time', 'end_play_time']);
+            $fieldPrices = FieldPrice::query()
+                ->where('fk_field_id', $fieldId)
+                ->where('day_type', $dayName)
+                ->get();
 
-        $closures = $this->getFieldClosuresFromDatabase($date, $fieldId);
+            $bookedSlots = BookingDetail::query()
+                ->whereHas('booking', function ($query) use ($fieldId) {
+                    /** @var \Illuminate\Database\Eloquent\Builder $query */
+                    $query->where('fk_field_id', $fieldId);
+                })
+                ->whereDate('play_date', $date)
+                ->whereNotIn('status', [BookingDetailStatus::CANCELLED->value, BookingDetailStatus::CLOSED_FIELD_CANCELLED->value])
+                ->get(['start_play_time', 'end_play_time']);
 
-        $slots = [];
-        $startHour = 6;
-        $endHour = 23;
+            $closures = $this->getFieldClosuresFromDatabase($date, $fieldId);
 
-        for ($hour = $startHour; $hour < $endHour; $hour++) {
-            $slotData = $this->calculateSingleSlotMetrics($hour, $date, $fieldPrices, $bookedSlots, $closures);
-            if ($slotData !== null) {
-                $slots[] = $slotData;
+            $slots = [];
+            $startHour = 6;
+            $endHour = 23;
+
+            for ($hour = $startHour; $hour < $endHour; $hour++) {
+                $slotData = $this->calculateSingleSlotMetrics($hour, $date, $fieldPrices, $bookedSlots, $closures);
+                if ($slotData !== null) {
+                    $slots[] = $slotData;
+                }
             }
-        }
 
-        return $slots;
+            return $slots;
+        });
     }
 
     private function calculateSingleSlotMetrics(int $hour, string $date, $fieldPrices, $bookedSlots, array $closures): ?array

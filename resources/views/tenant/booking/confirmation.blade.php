@@ -130,7 +130,7 @@
         </x-tenant-card>
 
         <div class="flex justify-end gap-4">
-            <x-tenant-button href="javascript:history.back()" class="bg-white border-gray-300 text-gray-700 hover:bg-gray-50 px-6 py-2.5">
+            <x-tenant-button href="javascript:history.back()" variant="danger" class="px-6 py-2.5">
                 Kembali
             </x-tenant-button>
             <x-tenant-button type="submit" variant="primary" class="px-6 py-2.5 shadow-tenant-md">

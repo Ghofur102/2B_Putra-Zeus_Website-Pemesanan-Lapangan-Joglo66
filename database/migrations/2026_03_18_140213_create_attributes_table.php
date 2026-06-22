@@ -18,7 +18,7 @@ return new class extends Migration
             $table->unsignedInteger('stock')->default(0);
             $table->unsignedInteger('price_hour');
             $table->string('type', 100)->default('lainnya');
-            $table->enum('status', ['active', 'inactive'])->default('active')->after('price_hour');
+            $table->enum('status', ['active', 'inactive'])->default('active');
             $table->timestamps();
         });
     }

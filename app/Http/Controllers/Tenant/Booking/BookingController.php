@@ -70,16 +70,24 @@ class BookingController extends Controller
 
             $response = view('tenant.booking.checkout', [
                 'booking'     => $result['booking'],
-                'reference'   => $result['reference'],
-                'amountToPay' => $result['amountToPay'],
             ]);
         } catch (Throwable $e) {
             $response = redirect()->route(self::ROUTE_DASHBOARD)->with('error', 'Transaksi gagal: ' . $e->getMessage());
         }
 
-        Cache::forget("tenant_nearest_bookings_field_{$request->field_id}");
-
         return $response;
+    }
+
+    public function success($booking_id): View|RedirectResponse
+    {
+        try {
+            $booking = $this->bookingService->getBookingSuccessData((int)$booking_id, Auth::id());
+
+            return view('tenant.booking.success', compact('booking'));
+        } catch (Throwable $e) {
+            return redirect()->route('tenant.booking.dashboard')
+                ->with('error', $e->getMessage());
+        }
     }
 
 }
