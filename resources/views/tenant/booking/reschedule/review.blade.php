@@ -47,7 +47,7 @@
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <x-tenant-button :href="route('tenant.booking.process.reschedule', $detail->id)" variant="danger" class="w-full py-3">
+            <x-tenant-button href="javascript:history.back()" variant="danger" class="w-full py-3">
                 Batal Konfirmasi
             </x-tenant-button>
             <form method="POST" action="{{ route('tenant.booking.process.reschedule', $detail->id) }}" class="block">

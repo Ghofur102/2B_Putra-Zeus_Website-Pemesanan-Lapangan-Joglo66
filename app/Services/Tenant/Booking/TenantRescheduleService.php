@@ -2,19 +2,19 @@
 
 namespace App\Services\Tenant\Booking;
 
-use App\Models\BookingDetail;
-use App\Models\BookingReschedule;
-use App\Models\FieldPrice;
-use App\Models\Payment;
 use App\Enums\BookingDetailStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\PaymentType;
 use App\Enums\RescheduleRefundStatus;
+use App\Models\BookingDetail;
+use App\Models\BookingReschedule;
+use App\Models\FieldPrice;
+use App\Models\Payment;
 use Carbon\Carbon;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 use UnexpectedValueException;
 
 class TenantRescheduleService
@@ -24,14 +24,14 @@ class TenantRescheduleService
     public function getFormPreparationData(BookingDetail $detail, array $params): array
     {
         $selectedDate = $params['date'] ?? date('Y-m-d');
-        $month = (int)($params['month'] ?? date('m'));
-        $year = (int)($params['year'] ?? date('Y'));
+        $month = (int) ($params['month'] ?? date('m'));
+        $year = (int) ($params['year'] ?? date('Y'));
 
         $calendar = $this->generateCalendar($month, $year);
         $prevMonth = Carbon::create($year, $month, 1)->subMonth();
         $nextMonth = Carbon::create($year, $month, 1)->addMonth();
 
-        $slots = $this->getSlotsForDate((int)$detail->booking->fk_field_id, $selectedDate, $detail);
+        $slots = $this->getSlotsForDate((int) $detail->booking->fk_field_id, $selectedDate, $detail);
 
         return compact('calendar', 'month', 'year', 'selectedDate', 'prevMonth', 'nextMonth', 'slots');
     }
@@ -42,7 +42,7 @@ class TenantRescheduleService
         $this->checkSlotConflict($detail, $newSlot);
 
         $newPrice = $this->getNewPrice($detail, $newSlot);
-        $oldPrice = (int)$detail->price;
+        $oldPrice = (int) $detail->price;
         $priceDiff = $newPrice - $oldPrice;
 
         return compact('newPrice', 'oldPrice', 'priceDiff');
@@ -55,29 +55,34 @@ class TenantRescheduleService
         DB::connection(self::DB_CONN)->transaction(function () use ($detail, $validated, $review) {
             BookingReschedule::create([
                 'fk_booking_detail_id' => $detail->id,
-                'old_date'             => $detail->play_date,
-                'status_refund'        => $this->determineStatusRefund($review['priceDiff']),
-                'reason'               => $validated['reason'],
+                'old_date' => $detail->play_date,
+                'status_refund' => $this->determineStatusRefund($review['priceDiff']),
+                'reason' => $validated['reason'],
             ]);
 
             $detail->update([
-                'play_date'       => $validated['new_play_date'],
+                'play_date' => $validated['new_play_date'],
                 'start_play_time' => $validated['new_start_play_time'],
-                'end_play_time'   => $validated['new_end_play_time'],
-                'price'           => $review['newPrice'],
-                'status'          => BookingDetailStatus::RESCHEDULE->value,
+                'end_play_time' => $validated['new_end_play_time'],
+                'price' => $review['newPrice'],
+                'status' => BookingDetailStatus::RESCHEDULE->value,
             ]);
 
             if ($review['priceDiff'] !== 0) {
+                $isFeeRequired = $review['priceDiff'] > 0;
+
+                $prefix = $isFeeRequired ? 'RSCH-' : 'REF-';
+                $payType = $isFeeRequired ? PaymentType::RESCHEDULE_FEE->value : PaymentType::REFUND->value;
+
                 Payment::create([
-                    'fk_booking_id'        => $detail->fk_booking_id,
+                    'fk_booking_id' => $detail->fk_booking_id,
                     'fk_booking_detail_id' => $detail->id,
-                    'reference_id'         => ($review['priceDiff'] > 0 ? 'RSCH-' : 'REF-') . Str::upper(Str::random(10)),
-                    'payment_type'         => $review['priceDiff'] > 0 ? PaymentType::RESCHEDULE_FEE->value : PaymentType::REFUND->value,
-                    'method'               => 'cash',
-                    'amount'               => abs($review['priceDiff']),
-                    'status'               => PaymentStatus::SUCCESS->value,
-                    'paid_at'              => now(),
+                    'reference_id' => $prefix.Str::upper(Str::random(10)),
+                    'payment_type' => $payType,
+                    'method' => 'cash',
+                    'amount' => abs($review['priceDiff']),
+                    'status' => PaymentStatus::PENDING->value,
+                    'paid_at' => null,
                 ]);
             }
         });
@@ -92,6 +97,10 @@ class TenantRescheduleService
             throw new UnexpectedValueException('Reschedule hanya bisa dilakukan minimal H-3 sebelum jadwal bermain.');
         }
 
+        if (strtolower($detail->status) === 'waiting') {
+            throw new UnexpectedValueException('Fitur reschedule tidak tersedia. Silakan selesaikan pembayaran terlebih dahulu.');
+        }
+
         $alreadyRescheduled = BookingReschedule::query()->where('fk_booking_detail_id', $detail->id)->exists();
         if ($alreadyRescheduled) {
             throw new UnexpectedValueException('Reschedule hanya dapat dilakukan 1 kali.');
@@ -100,15 +109,15 @@ class TenantRescheduleService
 
     private function checkSlotConflict(BookingDetail $detail, array $newSlot): void
     {
-        $newStart = $newSlot['new_start_play_time'] . ':00';
-        $newEnd = $newSlot['new_end_play_time'] . ':00';
+        $newStart = $newSlot['new_start_play_time'].':00';
+        $newEnd = $newSlot['new_end_play_time'].':00';
 
         if ($newSlot['new_play_date'] === $detail->play_date && $newStart >= $detail->start_play_time && $newEnd <= $detail->end_play_time) {
             throw new UnexpectedValueException('Anda tidak bisa memilih waktu yang menjadi bagian dari jadwal Anda saat ini.');
         }
 
         $conflict = BookingDetail::query()
-            ->whereHas('booking', fn($q) => $q->where('fk_field_id', $detail->booking->fk_field_id))
+            ->whereHas('booking', fn ($q) => $q->where('fk_field_id', $detail->booking->fk_field_id))
             ->where('id', '!=', $detail->id)
             ->where('play_date', $newSlot['new_play_date'])
             ->whereNotIn('status', [BookingDetailStatus::CANCELLED->value, 'failed', 'expired'])
@@ -116,23 +125,30 @@ class TenantRescheduleService
             ->where('end_play_time', '>', $newSlot['new_start_play_time'])
             ->exists();
 
-        $isClosed = false;
-        if (Schema::connection(self::DB_CONN)->hasTable('field_closures')) {
-            $newStartDT = $newSlot['new_play_date'] . ' ' . $newStart;
-            $newEndDT = $newSlot['new_play_date'] . ' ' . $newEnd;
-
-            $isClosed = DB::connection(self::DB_CONN)->table('field_closures')
-                ->where('fk_field_id', $detail->booking->fk_field_id)
-                ->where(function ($query) use ($newStartDT, $newEndDT) {
-                    /** @var \Illuminate\Database\Query\Builder $query */
-                    $query->where('field_closure_start_time', '<', $newEndDT)
-                          ->where('field_closure_end_time', '>', $newStartDT);
-                })->exists();
-        }
+        $isClosed = $this->isFieldClosedOnSlot($detail, $newSlot, $newStart, $newEnd);
 
         if ($conflict || $isClosed) {
             throw new UnexpectedValueException('Slot yang dipilih sudah dibooking atau lapangan sedang ditutup.');
         }
+    }
+
+    private function isFieldClosedOnSlot(BookingDetail $detail, array $newSlot, string $newStart, string $newEnd): bool
+    {
+        $isClosed = false;
+        if (Schema::connection(self::DB_CONN)->hasTable('field_closures')) {
+            $newStartDT = $newSlot['new_play_date'].' '.$newStart;
+            $newEndDT = $newSlot['new_play_date'].' '.$newEnd;
+
+            $isClosed = DB::connection(self::DB_CONN)->table('field_closures')
+                ->where('fk_field_id', $detail->booking->fk_field_id)
+                ->where(function ($query) use ($newStartDT, $newEndDT) {
+                    /** @var Builder $query */
+                    $query->where('field_closure_start_time', '<', $newEndDT)
+                        ->where('field_closure_end_time', '>', $newStartDT);
+                })->exists();
+        }
+
+        return $isClosed;
     }
 
     private function getNewPrice(BookingDetail $detail, array $newSlot): int
@@ -145,10 +161,11 @@ class TenantRescheduleService
             ->where('end_time', '>=', $newSlot['new_end_play_time'])
             ->value('price');
 
-        if (!$price) {
+        if (! $price) {
             throw new UnexpectedValueException('Harga untuk jadwal baru tidak ditemukan.');
         }
-        return (int)$price;
+
+        return (int) $price;
     }
 
     private function determineStatusRefund(int $priceDiff): string
@@ -159,6 +176,7 @@ class TenantRescheduleService
         } elseif ($priceDiff < 0) {
             $status = RescheduleRefundStatus::REFUND_REQUIRED->value;
         }
+
         return $status;
     }
 
@@ -171,13 +189,14 @@ class TenantRescheduleService
         $days = [];
         for ($current = $start->copy(); $current <= $end; $current->addDay()) {
             $days[] = [
-                'date'           => $current->format('Y-m-d'),
-                'day'            => (int) $current->format('j'),
+                'date' => $current->format('Y-m-d'),
+                'day' => (int) $current->format('j'),
                 'isCurrentMonth' => $current->month === $month,
-                'isToday'        => $current->isToday(),
-                'isPast'         => $current->isPast() && !$current->isToday(),
+                'isToday' => $current->isToday(),
+                'isPast' => $current->isPast() && ! $current->isToday(),
             ];
         }
+
         return $days;
     }
 
@@ -191,22 +210,34 @@ class TenantRescheduleService
             ->get();
 
         $occupied = BookingDetail::query()
-            ->whereHas('booking', fn($q) => $q->where('fk_field_id', $fieldId))
+            ->whereHas('booking', fn ($q) => $q->where('fk_field_id', $fieldId))
             ->where('id', '!=', $originalDetail->id)
             ->where('play_date', $date)
             ->whereNotIn('status', [BookingDetailStatus::CANCELLED->value, 'failed', 'expired'])
             ->get(['start_play_time', 'end_play_time']);
 
+        $closures = $this->getClosuresForDate($fieldId, $date);
+
+        return $this->buildHourlySlots($priceRules, $occupied, $closures, $date, $originalDetail);
+    }
+
+    private function getClosuresForDate(int $fieldId, string $date): array
+    {
         $closures = [];
         if (Schema::connection(self::DB_CONN)->hasTable('field_closures')) {
             $closures = DB::connection(self::DB_CONN)->table('field_closures')
                 ->where('fk_field_id', $fieldId)
-                ->where('field_closure_start_time', '<=', $date . ' 23:59:59')
-                ->where('field_closure_end_time', '>=', $date . ' 00:00:00')
+                ->where('field_closure_start_time', '<=', $date.' 23:59:59')
+                ->where('field_closure_end_time', '>=', $date.' 00:00:00')
                 ->get()
                 ->toArray();
         }
 
+        return $closures;
+    }
+
+    private function buildHourlySlots($priceRules, $occupied, $closures, string $date, BookingDetail $originalDetail): array
+    {
         $slots = [];
         foreach ($priceRules as $rule) {
             $start = Carbon::parse($rule->start_time);
@@ -216,28 +247,34 @@ class TenantRescheduleService
                 $slotStartDB = $current->format('H:i:s');
                 $slotEndDB = $current->copy()->addHour()->format('H:i:s');
 
-                $isOccupiedByOther = $occupied->contains(fn($b) => $slotStartDB < $b->end_play_time && $slotEndDB > $b->start_play_time);
-
-                $isClosed = false;
-                foreach ($closures as $closure) {
-                    if ($date . ' ' . $slotStartDB < $closure->field_closure_end_time && $date . ' ' . $slotEndDB > $closure->field_closure_start_time) {
-                        $isClosed = true;
-                        break;
-                    }
-                }
-
+                $isOccupiedByOther = $occupied->contains(fn ($b) => $slotStartDB < $b->end_play_time && $slotEndDB > $b->start_play_time);
+                $isClosed = $this->checkSlotClosureConflict($closures, $date, $slotStartDB, $slotEndDB);
                 $isOriginalSlot = ($date === $originalDetail->play_date) && ($slotStartDB >= $originalDetail->start_play_time && $slotEndDB <= $originalDetail->end_play_time);
 
                 $slots[] = [
-                    'start'        => $current->format('H:i'),
-                    'end'          => $current->copy()->addHour()->format('H:i'),
-                    'price'        => $rule->price,
-                    'is_available' => !$isOccupiedByOther && !$isClosed && !$isOriginalSlot,
-                    'is_original'  => $isOriginalSlot,
-                    'is_closed'    => $isClosed
+                    'start' => $current->format('H:i'),
+                    'end' => $current->copy()->addHour()->format('H:i'),
+                    'price' => $rule->price,
+                    'is_available' => ! $isOccupiedByOther && ! $isClosed && ! $isOriginalSlot,
+                    'is_original' => $isOriginalSlot,
+                    'is_closed' => $isClosed,
                 ];
             }
         }
+
         return $slots;
+    }
+
+    private function checkSlotClosureConflict(array $closures, string $date, string $start, string $end): bool
+    {
+        $isClosed = false;
+        foreach ($closures as $closure) {
+            if ($date.' '.$start < $closure->field_closure_end_time && $date.' '.$end > $closure->field_closure_start_time) {
+                $isClosed = true;
+                break;
+            }
+        }
+
+        return $isClosed;
     }
 }

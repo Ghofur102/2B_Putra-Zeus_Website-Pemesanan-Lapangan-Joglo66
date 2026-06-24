@@ -42,7 +42,7 @@
         </div>
 
         <div class="flex flex-col sm:flex-row gap-4">
-            <x-tenant-button :href="route('tenant.booking.process.cancelled', $detail->id)" variant="danger" class="w-full sm:w-1/2 py-3">
+            <x-tenant-button href="javascript:history.back()" variant="danger" class="w-full sm:w-1/2 py-3">
                 Batal Konfirmasi
             </x-tenant-button>
 

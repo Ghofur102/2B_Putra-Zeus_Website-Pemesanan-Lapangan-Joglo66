@@ -66,11 +66,11 @@ class RescheduleDetailBookingController extends Controller
 
     public function process(TenantRescheduleRequest $request): RedirectResponse
     {
+        $response = null;
         $detailId = $request->detail_booking_id;
 
         try {
             $detail = BookingDetail::query()->with('booking')->findOrFail($detailId);
-
             $this->authorizeAccess($detail);
 
             $fieldId = $detail->booking->fk_field_id ?? $request->field_id;
@@ -78,21 +78,25 @@ class RescheduleDetailBookingController extends Controller
 
             $validatedData = $request->validated();
             $newDate = $validatedData['new_play_date'] ?? $request->new_play_date;
+            $newTime = $validatedData['new_start_play_time'] ?? $request->new_start_play_time;
 
-            $this->rescheduleService->executeReschedule($detail, $validatedData);
+            $lockKey = "lock_field_{$fieldId}_date_{$newDate}_slot_{$newTime}";
+            $lock = Cache::lock($lockKey, 15);
 
-            if ($fieldId) {
-                Cache::forget("tenant_nearest_bookings_field_{$fieldId}");
+            if (!$lock->get()) {
+                $response = redirect()->route(self::ROUTE_RESCHEDULE_FORM, ['detail_booking_id' => $detailId])
+                    ->with('error', 'Jadwal baru pilihan Anda sedang diproses oleh pengguna lain. Silakan tunggu 15 detik atau pilih waktu yang berbeda.');
+            } else {
+                try {
+                    $this->rescheduleService->executeReschedule($detail, $validatedData);
+                    $this->clearRescheduleCache((int)$fieldId, $oldDate, $newDate);
+
+                    $response = redirect()->route(self::ROUTE_HISTORY_SHOW, $detail->fk_booking_id)
+                        ->with('success', 'Reschedule berhasil! Jadwal booking telah diubah.');
+                } finally {
+                    $lock->release();
+                }
             }
-
-            Cache::forget("tenant_slots_field_{$fieldId}_{$oldDate}");
-
-            if ($newDate) {
-                Cache::forget("tenant_slots_field_{$fieldId}_{$newDate}");
-            }
-
-            $response = redirect()->route(self::ROUTE_HISTORY_SHOW, $detail->fk_booking_id)
-                ->with('success', 'Reschedule berhasil! Jadwal booking telah diubah.');
         } catch (Throwable $e) {
             $response = redirect()->route(self::ROUTE_RESCHEDULE_FORM, ['detail_booking_id' => $detailId])->with('error', $e->getMessage());
         }
@@ -104,6 +108,19 @@ class RescheduleDetailBookingController extends Controller
     {
         if ($detail->booking->fk_user_id !== Auth::id()) {
             throw new InvalidArgumentException('Anda tidak memiliki akses ke booking ini.');
+        }
+    }
+
+    private function clearRescheduleCache(int $fieldId, string $oldDate, string $newDate): void
+    {
+        $cleanOldDate = \Carbon\Carbon::parse($oldDate)->format('Y-m-d');
+        $cleanNewDate = \Carbon\Carbon::parse($newDate)->format('Y-m-d');
+
+        Cache::forget("tenant_slots_field_{$fieldId}_{$cleanOldDate}");
+        Cache::forget("tenant_slots_field_{$fieldId}_{$cleanNewDate}");
+
+        if ($fieldId) {
+            Cache::forget("tenant_nearest_bookings_field_{$fieldId}");
         }
     }
 }

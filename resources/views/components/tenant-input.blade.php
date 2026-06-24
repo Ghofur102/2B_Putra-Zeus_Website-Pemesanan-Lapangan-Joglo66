@@ -4,16 +4,21 @@
     'type' => 'text',
     'value' => null,
     'placeholder' => '',
-    'required' => false
+    'required' => false,
+    'rows' => 3 // Tambahan prop default untuk mengatur tinggi textarea
 ])
 
 @php
     $hasError = $errors->has($name);
+    $isTextarea = $type === 'textarea'; // Deteksi jika tipe input adalah textarea
     $isPassword = $type === 'password';
 
     $baseClasses = 'w-full px-4 py-3 bg-gray-50 border rounded-tenant-md text-gray-800 placeholder-gray-400 focus:bg-white focus:ring-1 transition-all outline-none text-sm';
 
-    if ($isPassword || $slot->isNotEmpty()) {
+    // Jika textarea, tambahkan kelas matikan resize manual agar desain tidak rusak
+    if ($isTextarea) {
+        $baseClasses .= ' resize-none';
+    } elseif ($isPassword || $slot->isNotEmpty()) {
         $baseClasses .= ' pr-6';
     }
 
@@ -33,17 +38,31 @@
     @endif
 
     <div class="relative">
-        <input
-            type="{{ $type }}"
-            id="{{ $name }}"
-            name="{{ $name }}"
-            value="{{ old($name, $value) }}"
-            placeholder="{{ $placeholder }}"
-            {{ $required ? 'required' : '' }}
-            {{ $attributes->merge(['class' => $baseClasses . ' ' . $statusClasses]) }}
-        >
+        @if($isTextarea)
+            {{-- Render Elemen Textarea --}}
+            <textarea
+                id="{{ $name }}"
+                name="{{ $name }}"
+                rows="{{ $rows }}"
+                placeholder="{{ $placeholder }}"
+                {{ $required ? 'required' : '' }}
+                {{ $attributes->merge(['class' => $baseClasses . ' ' . $statusClasses]) }}
+            >{{ old($name, $value) }}</textarea>
+        @else
+            {{-- Render Elemen Input Standar --}}
+            <input
+                type="{{ $type }}"
+                id="{{ $name }}"
+                name="{{ $name }}"
+                value="{{ old($name, $value) }}"
+                placeholder="{{ $placeholder }}"
+                {{ $required ? 'required' : '' }}
+                {{ $attributes->merge(['class' => $baseClasses . ' ' . $statusClasses]) }}
+            >
+        @endif
 
-        @if($slot->isNotEmpty())
+        {{-- Slot ikon kanan hanya muncul jika bukan elemen textarea --}}
+        @if(!$isTextarea && $slot->isNotEmpty())
             <div class="absolute inset-y-0 right-0 flex items-center pr-4">
                 {{ $slot }}
             </div>
