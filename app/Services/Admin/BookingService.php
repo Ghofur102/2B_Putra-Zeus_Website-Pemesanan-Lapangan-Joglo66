@@ -112,12 +112,36 @@ class BookingService
         $duration = max(1, $start->diffInHours($end));
 
         $allPayments = $detail->booking->payments->where('status', PaymentStatus::SUCCESS->value);
-        $totalBookingPaid = $allPayments->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value])->sum(fn($p) => $p->amount);
-        $totalBookingRefund = $allPayments->where('payment_type', PaymentType::REFUND->value)->sum(fn($p) => $p->amount);
 
-        $sessions = $detail->booking->details->map(function ($item) use ($allPayments, $detail) {
+        $totalBookingPaid = $allPayments->whereIn('payment_type', [
+            PaymentType::DOWN_PAYMENT->value,
+            PaymentType::FINAL_PAYMENT->value,
+            PaymentType::RESCHEDULE_FEE->value
+        ])->sum('amount');
+
+        $totalBookingRefund = $allPayments->where('payment_type', PaymentType::REFUND->value)->sum('amount');
+
+        $totalSessionsCount = $detail->booking->details->count();
+
+        $globalPaid = $allPayments->whereNull('fk_booking_detail_id')
+            ->where('payment_type', PaymentType::DOWN_PAYMENT->value)
+            ->sum('amount');
+
+        $allocatedGlobalDp = $totalSessionsCount > 0 ? ($globalPaid / $totalSessionsCount) : 0;
+
+        $sessions = $detail->booking->details->map(function ($item) use ($allPayments, $allocatedGlobalDp) {
             /** @var BookingDetail $item */
-            $sessionPaid = $this->calculateTotalPaidForDetail($detail->booking, $item);
+
+            $specificPaid = $allPayments->where('fk_booking_detail_id', $item->id)
+                ->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value])
+                ->sum('amount');
+
+            $specificRefund = $allPayments->where('payment_type', PaymentType::REFUND->value)
+                ->where('fk_booking_detail_id', $item->id)
+                ->sum('amount');
+
+            $sessionPaid = $allocatedGlobalDp + $specificPaid - $specificRefund;
+            $remainingPayment = max(0, $item->price - $sessionPaid);
 
             return [
                 'id'                => $item->id,
@@ -127,8 +151,8 @@ class BookingService
                 'price'             => (int)$item->price,
                 'status'            => $item->status,
                 'total_paid'        => (int)$sessionPaid,
-                'remaining_payment' => (int)($item->price - $sessionPaid),
-                'refund_amount'     => (int)$allPayments->where('payment_type', PaymentType::REFUND->value)->where('fk_booking_detail_id', $item->id)->sum(fn($p) => $p->amount)
+                'remaining_payment' => (int)$remainingPayment,
+                'refund_amount'     => (int)$specificRefund
             ];
         });
 
@@ -160,102 +184,11 @@ class BookingService
             'payment_details' => [
                 'total_price'    => (int)$detail->booking->details->sum(fn($d) => $d->price),
                 'total_paid'     => (int)($totalBookingPaid - $totalBookingRefund),
-                'payment_method' => $detail->booking->payments->last()->method ?? '-',
+                'payment_method' => $allPayments->last()->method ?? 'cash',
             ],
             'sessions'       => $sessions,
             'field_closures' => $closures
         ];
-    }
-
-    public function executeReschedule(BookingDetail $detail, array $data): void
-    {
-        $this->validateRescheduleTimeline($detail);
-
-        $startFormatted = Carbon::parse($data['new_play_date'] . ' ' . $data['new_start_time'])->format(self::DATE_TIME_FORMAT);
-        $endFormatted = Carbon::parse($data['new_play_date'] . ' ' . $data['new_end_time'])->format(self::DATE_TIME_FORMAT);
-
-        $isClosed = DB::table('field_closures')
-            ->where('fk_field_id', $detail->booking->fk_field_id)
-            ->where('field_closure_start_time', '<', $endFormatted)
-            ->where('field_closure_end_time', '>', $startFormatted)
-            ->exists();
-
-        if ($isClosed) {
-            throw new HttpException(400, 'Reschedule ditolak: Lapangan sedang ditutup operasional (Field Closure) pada slot waktu pilihan Anda.');
-        }
-
-        // Otomatisasi Perhitungan finansial Reschedule berdasarkan selisih harga baru vs lama
-        $rescheduleRefundStatus = RescheduleRefundStatus::NONE->value;
-        if (isset($data['new_price'])) {
-            if ((int)$data['new_price'] > (int)$detail->price) {
-                $rescheduleRefundStatus = RescheduleRefundStatus::DEPOSIT_REQUIRED->value;
-            } elseif ((int)$data['new_price'] < (int)$detail->price) {
-                $rescheduleRefundStatus = RescheduleRefundStatus::REFUND_REQUIRED->value;
-            }
-        }
-
-        DB::transaction(function () use ($detail, $data, $rescheduleRefundStatus) {
-            BookingReschedule::create([
-                'fk_booking_detail_id' => $detail->id,
-                'fk_field_closure_id'  => $data['fk_field_closure_id'] ?? null,
-                'old_date'             => $detail->play_date,
-                'reason'               => $data['reason'],
-                'status_refund'        => $rescheduleRefundStatus, // SEKARANG DIISI SINKRON DENGAN ENUM DB
-            ]);
-
-            $isFromClosure = strtolower($detail->status) === BookingDetailStatus::FIELD_CLOSURE->value;
-            $updateData = [
-                'play_date'       => $data['new_play_date'],
-                'start_play_time' => $data['new_start_time'],
-                'end_play_time'   => $data['new_end_time'],
-                'status'          => $isFromClosure ? BookingDetailStatus::CLOSED_FIELD_RESCHEDULE->value : BookingDetailStatus::RESCHEDULE->value,
-            ];
-
-            if (isset($data['new_price'])) {
-                $updateData['price'] = $data['new_price'];
-            }
-
-            $detail->update($updateData);
-        });
-    }
-
-    public function executeCancel(BookingDetail $detail, array $data): void
-    {
-        $currentStatus = strtolower($detail->status);
-        if (str_contains($currentStatus, 'cancel')) {
-            throw new HttpException(400, 'Booking ini sudah dibatalkan.');
-        }
-
-        $statusRefund = $this->determineRefundStatus($detail, $data['status_refund'] ?? 'None');
-        $refundAmount = $this->calculateCancelRefund($detail, $statusRefund);
-
-        DB::transaction(function () use ($detail, $data, $statusRefund, $refundAmount) {
-            BookingCancelled::create([
-                'fk_booking_detail_id' => $detail->id,
-                'fk_field_closure_id'  => $data['fk_field_closure_id'] ?? null,
-                'cancle_date'          => Carbon::now()->toDateString(),
-                'reason'               => $data['reason'],
-                'status_refund'        => $statusRefund, // Terkunci aman via enum validasi string
-            ]);
-
-            $isFromClosure = strtolower($detail->status) === BookingDetailStatus::FIELD_CLOSURE->value;
-            $detail->update([
-                'status' => $isFromClosure ? BookingDetailStatus::CLOSED_FIELD_CANCELLED->value : BookingDetailStatus::CANCELLED->value,
-            ]);
-
-            if ($refundAmount > 0) {
-                Payment::create([
-                    'fk_booking_id'        => $detail->fk_booking_id,
-                    'fk_booking_detail_id' => $detail->id,
-                    'reference_id'         => 'CNL-REF-' . strtoupper(Str::random(10)),
-                    'payment_type'         => PaymentType::REFUND->value,
-                    'method'               => 'cash',
-                    'amount'               => $refundAmount,
-                    'status'               => PaymentStatus::SUCCESS->value,
-                    'paid_at'              => now(),
-                ]);
-            }
-        });
     }
 
     public function executeRefundOverpayment(BookingDetail $detail): void

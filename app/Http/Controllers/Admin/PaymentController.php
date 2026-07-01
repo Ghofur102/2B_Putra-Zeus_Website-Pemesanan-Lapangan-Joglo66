@@ -38,7 +38,9 @@ class PaymentController extends Controller
                 throw new AccessDeniedHttpException('Forbidden. Anda tidak memiliki akses untuk memproses pembayaran di lapangan ini.');
             }
 
-            $payment = $this->paymentService->process($request->validated());
+            $result = $this->paymentService->process($request->validated());
+            $payment = $result['payment'];
+            $warning = $result['warning'];
 
             $data = [
                 'success' => true,
@@ -49,6 +51,11 @@ class PaymentController extends Controller
                     'payment_url' => $payment->payment_url,
                 ],
             ];
+
+            if (!is_null($warning)) {
+                $data['warning'] = $warning;
+            }
+
         } catch (HttpException $e) {
             $status = $e->getStatusCode();
             $data = [

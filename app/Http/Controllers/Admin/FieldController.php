@@ -129,7 +129,6 @@ class FieldController extends Controller
         $data = [];
 
         try {
-            // Melakukan validasi parameter jalur URL secara manual & taktis
             $validator = Validator::make(['date' => $date], ['date' => 'required|date_format:Y-m-d']);
             if ($validator->fails()) {
                 return response()->json(['success' => false, 'message' => 'Format tanggal salah. Gunakan Y-m-d.'], 422);
@@ -140,7 +139,7 @@ class FieldController extends Controller
             }
 
             $availability = $this->fieldService->checkSlotAvailability($field_id, $date);
-            $data = array_merge(['success' => true], $availability);
+            $data = ['success' => true, 'available_slots' => $availability];
         } catch (HttpException $e) {
             $status = $e->getStatusCode();
             $data = ['success' => false, 'message' => $e->getMessage()];

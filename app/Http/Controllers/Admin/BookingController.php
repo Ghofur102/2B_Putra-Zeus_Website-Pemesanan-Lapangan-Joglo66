@@ -6,13 +6,9 @@ use App\Models\BookingDetail;
 use App\Services\Admin\BookingService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreBookingRequest;
-use App\Http\Requests\Admin\RescheduleBookingRequest;
-use App\Http\Requests\Admin\CancelBookingRequest;
 use App\Http\Controllers\Traits\FieldAccessTrait;
-use App\Enums\BookingDetailStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -101,13 +97,16 @@ class BookingController extends Controller
         $data = [];
 
         try {
-            $detail = BookingDetail::query()->find($detail_booking_id);
+            $detail = BookingDetail::query()
+                ->with(['booking.payments', 'booking.details'])
+                ->find($detail_booking_id);
+
             if (!$detail) {
                 throw new NotFoundHttpException('Booking detail not found.');
             }
 
             if (!$this->checkFieldAccess($request->user(), $detail->booking->fk_field_id)) {
-                throw new AccessDeniedHttpException('Unauthorized.');
+                throw new AccessDeniedHttpException('Unauthorized. Anda tidak memiliki akses ke lapangan ini.');
             }
 
             $result = $this->bookingService->getBookingDetailInfo($detail);
@@ -117,153 +116,10 @@ class BookingController extends Controller
             $data = ['success' => false, 'message' => $e->getMessage()];
         } catch (Throwable $e) {
             $status = 500;
-            $data = ['success' => false, 'message' => 'Internal server error.'];
-        }
-
-        return response()->json($data, $status);
-    }
-
-    public function reschedule(RescheduleBookingRequest $request, $detail_booking_id): JsonResponse
-    {
-        $status = 200;
-        $data = [];
-
-        try {
-            $detail = BookingDetail::query()->find($detail_booking_id);
-            if (!$detail) {
-                throw new NotFoundHttpException('Data booking tidak ditemukan.');
-            }
-
-            if (!$this->checkFieldAccess($request->user(), $detail->booking->fk_field_id)) {
-                throw new AccessDeniedHttpException('Unauthorized.');
-            }
-
-            $this->bookingService->executeReschedule($detail, $request->validated());
-
-            $data = [
-                'success' => true,
-                'message' => 'Jadwal booking berhasil diubah.',
-                'data'    => $detail->fresh()
-            ];
-        } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
-        } catch (Throwable $e) {
-            $status = 500;
             $data = [
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat mengubah jadwal: ' . $e->getMessage(),
-            ];
-        }
-
-        return response()->json($data, $status);
-    }
-
-    public function cancel(CancelBookingRequest $request, $detail_booking_id): JsonResponse
-    {
-        $status = 200;
-        $data = [];
-
-        try {
-            $detail = BookingDetail::query()->find($detail_booking_id);
-            if (!$detail) {
-                throw new NotFoundHttpException('Data tidak ditemukan.');
-            }
-
-            if (!$this->checkFieldAccess($request->user(), $detail->booking->fk_field_id)) {
-                throw new AccessDeniedHttpException('Unauthorized.');
-            }
-
-            $this->bookingService->executeCancel($detail, $request->validated());
-            $data = ['success' => true, 'message' => 'Booking berhasil dibatalkan.'];
-        } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
-        } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Terjadi kesalahan: ' . $e->getMessage()];
-        }
-
-        return response()->json($data, $status);
-    }
-
-    public function closedBookings(Request $request): JsonResponse
-    {
-        $status = 200;
-        $data = [];
-
-        try {
-            $user = $request->user();
-            $query = BookingDetail::query()
-                ->whereIn('status', [
-                    BookingDetailStatus::FIELD_CLOSURE->value,
-                    BookingDetailStatus::CLOSED_FIELD_CANCELLED->value,
-                    BookingDetailStatus::CLOSED_FIELD_RESCHEDULE->value
-                ])
-                ->with(['booking.user', 'booking.field'])
-                ->orderBy('play_date', 'desc')
-                ->orderBy('start_play_time');
-
-            if ($user && $user->role === 'worker') {
-                $fieldIds = $this->getAccessibleFieldIds($user);
-                $query->whereHas('booking', function($q) use ($fieldIds) {
-                    /** @var \Illuminate\Database\Eloquent\Builder $q */
-                    $q->whereIn('fk_field_id', $fieldIds);
-                });
-            }
-
-            if ($request->filled('field_id')) {
-                $query->whereHas('booking', function($q) use ($request) {
-                    /** @var \Illuminate\Database\Eloquent\Builder $q */
-                    $q->where('fk_field_id', $request->field_id);
-                });
-            }
-
-            if ($request->filled('date')) {
-                $query->where('play_date', $request->date);
-            }
-
-            $data = [
-                'success'         => true,
-                'closed_bookings' => $query->paginate(20),
-            ];
-        } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => $e->getMessage()];
-        }
-
-        return response()->json($data, $status);
-    }
-
-    public function refundOverpayment(Request $request, $detail_booking_id): JsonResponse
-    {
-        $status = 200;
-        $data = [];
-
-        try {
-            $detail = BookingDetail::query()->find($detail_booking_id);
-            if (!$detail) {
-                throw new NotFoundHttpException('Data sesi tidak ditemukan.');
-            }
-
-            if (!$this->checkFieldAccess($request->user(), $detail->booking->fk_field_id)) {
-                throw new AccessDeniedHttpException('Unauthorized.');
-            }
-
-            $this->bookingService->executeRefundOverpayment($detail);
-
-            $data = [
-                'success' => true,
-                'message' => 'Kelebihan pembayaran berhasil dikembalikan secara tunai.'
-            ];
-        } catch (HttpException $e) {
-            $status = $e->getStatusCode();
-            $data = ['success' => false, 'message' => $e->getMessage()];
-        } catch (Throwable $e) {
-            $status = 500;
-            $data = [
-                'success' => false,
-                'message' => 'Gagal memproses pengembalian: ' . $e->getMessage()
+                'message' => 'Internal server error.',
+                'error'   => $e->getMessage()
             ];
         }
 

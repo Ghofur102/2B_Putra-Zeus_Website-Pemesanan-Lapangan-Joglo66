@@ -4,10 +4,13 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\FieldController;
 use App\Http\Controllers\Admin\BookingController;
+use App\Http\Controllers\Admin\RescheduleController;
+use App\Http\Controllers\Admin\CancelController;
+use App\Http\Controllers\Admin\ClosedBookingsController;
+use App\Http\Controllers\Admin\RefundOverpaymentController;
 use App\Http\Controllers\Admin\PaymentController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Tenant\Payment\DuitkuController;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Admin\AttributeController;
 use App\Http\Controllers\Admin\AttributeRentalController;
 use App\Http\Controllers\Admin\ExpenseController;
@@ -39,10 +42,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.field.admin'])->group
     Route::get('/list-booking', [BookingController::class, 'index']);
     Route::post('/create-booking', [BookingController::class, 'store']);
     Route::get('/detail-booking/{detail_booking_id}', [BookingController::class, 'show']);
-    Route::post('/reschedule-booking/{detail_booking_id}', [BookingController::class, 'reschedule']);
-    Route::post('/cancel-booking/{detail_booking_id}', [BookingController::class, 'cancel']);
-    Route::get('/list-close-booking', [BookingController::class, 'closedBookings']);
-    Route::post('/refund-overpayment/{id}', [BookingController::class, 'refundOverpayment']);
+
+    Route::post('/reschedule-booking/{detail_booking_id}', RescheduleController::class);
+    Route::post('/cancel-booking/{detail_booking_id}', CancelController::class);
+    Route::get('/list-close-booking', ClosedBookingsController::class);
+    Route::post('/refund-overpayment/{id}', RefundOverpaymentController::class);
 
     Route::post('/payment-booking', [PaymentController::class, 'processPayment']);
 

@@ -14,18 +14,20 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class PaymentService
 {
-    public function process(array $payload): Payment
+    public function process(array $payload): array
     {
         $booking = Booking::query()->with('details')->findOrFail($payload['booking_id']);
 
         $this->verifyBookingIntegrity($booking);
-        $this->verifyFinancials($booking, $payload);
+
+        $financialAdjustment = $this->verifyAndAdjustFinancials($booking, $payload);
+        $adjustedAmount = $financialAdjustment['adjusted_amount'];
+        $warningMessage = $financialAdjustment['warning'];
 
         $referenceId = $payload['reference_id'] ?? 'CSH-' . Str::upper(Str::random(12));
-
         $paymentStatus = PaymentStatus::SUCCESS->value;
 
-        return DB::transaction(function () use ($booking, $payload, $referenceId, $paymentStatus) {
+        $payment = DB::transaction(function () use ($booking, $payload, $referenceId, $paymentStatus, $adjustedAmount) {
             $createdPayment = Payment::create([
                 'fk_booking_id'        => $booking->id,
                 'fk_booking_detail_id' => $payload['booking_detail_id'] ?? null,
@@ -33,19 +35,29 @@ class PaymentService
                 'payment_url'          => null,
                 'payment_type'         => $payload['payment_type'],
                 'method'               => $payload['method'],
-                'amount'               => $payload['amount'],
+                'amount'               => $adjustedAmount,
                 'status'               => $paymentStatus,
                 'paid_at'              => now(),
             ]);
 
             if (in_array($payload['payment_type'], [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value], true)) {
-                $booking->details()->where('status', BookingDetailStatus::WAITING->value)->update([
-                    'status' => BookingDetailStatus::ACTIVE->value
-                ]);
+                $booking->details()
+                    ->where('status', BookingDetailStatus::WAITING->value)
+                    ->when($payload['booking_detail_id'] ?? null, function ($query, $detailId) {
+                        return $query->where('id', $detailId);
+                    })
+                    ->update([
+                        'status' => BookingDetailStatus::ACTIVE->value
+                    ]);
             }
 
             return $createdPayment;
         });
+
+        return [
+            'payment' => $payment,
+            'warning' => $warningMessage
+        ];
     }
 
     private function verifyBookingIntegrity(Booking $booking): void
@@ -55,7 +67,6 @@ class PaymentService
         }
 
         $allCancelled = $booking->details->every(function ($detail) {
-            /** @var BookingDetail $detail */
             return $detail->status === BookingDetailStatus::CANCELLED->value;
         });
 
@@ -64,56 +75,87 @@ class PaymentService
         }
     }
 
-    private function verifyFinancials(Booking $booking, array $payload): void
+    private function verifyAndAdjustFinancials(Booking $booking, array $payload): array
     {
-        $totalPrice = $booking->details->sum(fn($d) => $d->price);
+        $detailId = $payload['booking_detail_id'] ?? null;
+        $warning = null;
 
-        $totalPaid = Payment::query()->where('fk_booking_id', $booking->id)
-            ->where('status', PaymentStatus::SUCCESS->value)
-            ->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value])
-            ->sum(fn($p) => $p->amount);
+        if ($detailId) {
+            $detail = $booking->details->firstWhere('id', $detailId);
+            if (!$detail) {
+                throw new HttpException(400, 'Detail sesi booking tidak ditemukan.');
+            }
 
-        $totalRefunded = Payment::query()->where('fk_booking_id', $booking->id)
-            ->where('status', PaymentStatus::SUCCESS->value)
-            ->where('payment_type', PaymentType::REFUND->value)
-            ->sum(fn($p) => $p->amount);
+            $totalPrice = $detail->price;
 
-        $netPaid = $totalPaid - $totalRefunded;
+            $totalPaid = Payment::query()->where('fk_booking_id', $booking->id)
+                ->where('fk_booking_detail_id', $detailId)
+                ->where('status', PaymentStatus::SUCCESS->value)
+                ->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value])
+                ->sum('amount');
 
-        if (in_array($payload['payment_type'], [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value], true)) {
-            $this->validateIncomingPayment($payload, $netPaid, $totalPrice, $booking->id);
-        } elseif ($payload['payment_type'] === PaymentType::REFUND->value) {
-            $this->validateRefundPayment($payload, $netPaid);
-        }
-    }
+            $totalRefunded = Payment::query()->where('fk_booking_id', $booking->id)
+                ->where('fk_booking_detail_id', $detailId)
+                ->where('status', PaymentStatus::SUCCESS->value)
+                ->where('payment_type', PaymentType::REFUND->value)
+                ->sum('amount');
 
-    private function validateIncomingPayment(array $payload, float $netPaid, float $totalPrice, int $bookingId): void
-    {
-        if ($netPaid >= $totalPrice) {
-            throw new HttpException(400, 'Pesanan ini sudah lunas sepenuhnya. Tidak dapat memproses pembayaran lagi.');
-        }
-
-        if (($netPaid + $payload['amount']) > $totalPrice) {
-            $remaining = $totalPrice - $netPaid;
-            throw new HttpException(400, 'Nominal pembayaran melebihi sisa tagihan. Sisa tagihan saat ini adalah: Rp ' . number_format($remaining, 0, ',', '.'));
-        }
-
-        if ($payload['payment_type'] === PaymentType::DOWN_PAYMENT->value) {
-            $hasDownPayment = Payment::query()->where('fk_booking_id', $bookingId)
+            $globalDp = Payment::query()->where('fk_booking_id', $booking->id)
+                ->whereNull('fk_booking_detail_id')
                 ->where('payment_type', PaymentType::DOWN_PAYMENT->value)
                 ->where('status', PaymentStatus::SUCCESS->value)
-                ->exists();
+                ->sum('amount');
 
-            if ($hasDownPayment) {
-                throw new HttpException(400, 'Down Payment (DP) sudah dibayarkan sebelumnya. Silakan pilih Final Payment (Pelunasan).');
+            if ($globalDp > 0 && $totalPaid == 0) {
+                $totalPaid = $globalDp / $booking->details->count();
+            }
+        } else {
+            $totalPrice = $booking->details->sum(fn($d) => $d->price);
+
+            $totalPaid = Payment::query()->where('fk_booking_id', $booking->id)
+                ->where('status', PaymentStatus::SUCCESS->value)
+                ->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value])
+                ->sum('amount');
+
+            $totalRefunded = Payment::query()->where('fk_booking_id', $booking->id)
+                ->where('status', PaymentStatus::SUCCESS->value)
+                ->where('payment_type', PaymentType::REFUND->value)
+                ->sum('amount');
+        }
+
+        $netPaid = $totalPaid - $totalRefunded;
+        $adjustedAmount = (int)$payload['amount'];
+
+        if (in_array($payload['payment_type'], [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value], true)) {
+            if ($netPaid >= $totalPrice) {
+                throw new HttpException(400, 'Sesi ini sudah lunas sepenuhnya.');
+            }
+
+            if ($payload['payment_type'] === PaymentType::DOWN_PAYMENT->value) {
+                $expectedAmount = (int)($totalPrice * 0.5);
+
+                $hasDownPayment = Payment::query()->where('fk_booking_id', $booking->id)
+                    ->when($detailId, fn($q) => $q->where('fk_booking_detail_id', $detailId))
+                    ->where('payment_type', PaymentType::DOWN_PAYMENT->value)
+                    ->where('status', PaymentStatus::SUCCESS->value)
+                    ->exists();
+
+                if ($hasDownPayment) {
+                    throw new HttpException(400, 'Down Payment (DP) sudah dibayarkan sebelumnya.');
+                }
+            } else {
+                $expectedAmount = (int)($totalPrice - $netPaid);
+            }
+
+            if ((int)$payload['amount'] !== $expectedAmount) {
+                $adjustedAmount = $expectedAmount;
+                $warning = "Peringatan Keamanan: Request nominal pembayaran (Rp " . number_format($payload['amount'], 0, ',', '.') . ") tidak valid. Sistem otomatis menyesuaikan transaksi ke nilai resmi server sebesar Rp " . number_format($expectedAmount, 0, ',', '.') . ".";
             }
         }
-    }
 
-    private function validateRefundPayment(array $payload, float $netPaid): void
-    {
-        if ($payload['amount'] > $netPaid) {
-            throw new HttpException(400, 'Nominal refund melebihi total uang yang telah dibayarkan (Maksimal Refund: Rp ' . number_format($netPaid, 0, ',', '.') . ').');
-        }
+        return [
+            'adjusted_amount' => $adjustedAmount,
+            'warning'         => $warning
+        ];
     }
 }
