@@ -50,11 +50,14 @@ class ClosedBookingsController extends Controller
 
             $data = [
                 'success'         => true,
-                'closed_bookings' => $query->paginate(20),
+                'closed_bookings' => $query->get(),
             ];
         } catch (Throwable $e) {
             $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal memuat riwayat penutupan: ' . $e->getMessage()];
+            $data = [
+                'success' => false,
+                'message' => 'Gagal memuat riwayat penutupan: ' . $e->getMessage()
+            ];
         }
 
         return response()->json($data, $status);

@@ -5,14 +5,10 @@ namespace App\Services\Admin;
 use App\Models\Field;
 use App\Models\Booking;
 use App\Models\BookingDetail;
-use App\Models\BookingCancelled;
-use App\Models\BookingReschedule;
 use App\Models\Payment;
 use App\Enums\BookingDetailStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\PaymentType;
-use App\Enums\CancelRefundStatus;
-use App\Enums\RescheduleRefundStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -25,7 +21,7 @@ class BookingService
     public function getBookingList(array $fieldIds, array $filters): array
     {
         $today = Carbon::now()->format('Y-m-d');
-        $query = Booking::query()->with(['user', 'details', 'payments']);
+        $query = Booking::query()->with(['user', 'details', 'payments', 'field']);
 
         if (!empty($fieldIds)) {
             $query->whereIn('fk_field_id', $fieldIds);
@@ -44,34 +40,23 @@ class BookingService
         $upcomingBookings = [];
 
         foreach ($bookings as $booking) {
-            /** @var Booking $booking */
-            $fieldName = Field::query()->where('id', $booking->fk_field_id)->value('name') ?? 'Unknown Field';
+            $fieldName = $booking->field->name ?? 'Unknown Field';
 
             foreach ($booking->details as $detail) {
-                /** @var BookingDetail $detail */
-                if ($this->shouldSkipDetail($detail->play_date, $filters['start_date'] ?? null, $filters['end_date'] ?? null)) {
-                    continue;
-                }
-
-                $bookingItem = $this->buildBookingItem($booking, $detail, $fieldName);
-
-                if (!empty($filters['start_date']) || !empty($filters['end_date']) || !empty($filters['search'])) {
-                    $todayBookings[] = $bookingItem;
-                } elseif ($detail->play_date === $today) {
-                    $todayBookings[] = $bookingItem;
-                } elseif ($detail->play_date > $today) {
-                    $upcomingBookings[] = $bookingItem;
-                }
+                $this->categorizeDetail($todayBookings, $upcomingBookings, $booking, $detail, $fieldName, $today, $filters);
             }
         }
 
         usort($todayBookings, fn($a, $b) => strcmp($a['sort_datetime'], $b['sort_datetime']));
         usort($upcomingBookings, fn($a, $b) => strcmp($a['sort_datetime'], $b['sort_datetime']));
 
+        $closedAffectedCount = $this->countClosedAffectedBookings($fieldIds, $filters['field_id'] ?? null);
+
         $limit = $filters['limit'] ?? 20;
         return [
-            'today'    => array_slice($todayBookings, 0, $limit),
-            'upcoming' => array_slice($upcomingBookings, 0, $limit)
+            'today'                 => array_slice($todayBookings, 0, $limit),
+            'upcoming'              => array_slice($upcomingBookings, 0, $limit),
+            'closed_affected_count' => $closedAffectedCount,
         ];
     }
 
@@ -81,13 +66,13 @@ class BookingService
 
         return DB::transaction(function () use ($payload) {
             $booking = Booking::create([
-                'fk_user_id'     => $payload['user_id'],
-                'fk_field_id'    => $payload['field_id'],
-                'team_name'      => $payload['team_name'],
-                'booking_date'   => $payload['booking_date'],
-                'customer_phone' => $payload['customer_phone'] ?? null,
-                'customer_email' => $payload['customer_email'] ?? null,
-                'notes'          => $payload['notes'] ?? null,
+                'fk_user_id'      => $payload['user_id'],
+                'fk_field_id'     => $payload['field_id'],
+                'team_name'       => $payload['team_name'],
+                'booking_date'    => $payload['booking_date'],
+                'customer_phone'  => $payload['customer_phone'] ?? null,
+                'customer_email'  => $payload['customer_email'] ?? null,
+                'notes'           => $payload['notes'] ?? null,
             ]);
 
             foreach ($payload['details'] as $detail) {
@@ -130,8 +115,6 @@ class BookingService
         $allocatedGlobalDp = $totalSessionsCount > 0 ? ($globalPaid / $totalSessionsCount) : 0;
 
         $sessions = $detail->booking->details->map(function ($item) use ($allPayments, $allocatedGlobalDp) {
-            /** @var BookingDetail $item */
-
             $specificPaid = $allPayments->where('fk_booking_detail_id', $item->id)
                 ->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value, PaymentType::RESCHEDULE_FEE->value])
                 ->sum('amount');
@@ -141,7 +124,10 @@ class BookingService
                 ->sum('amount');
 
             $sessionPaid = $allocatedGlobalDp + $specificPaid - $specificRefund;
-            $remainingPayment = max(0, $item->price - $sessionPaid);
+
+            $remainingPayment = $this->isClosedOrCancelledStatus($item->status)
+                ? 0
+                : max(0, $item->price - $sessionPaid);
 
             return [
                 'id'                => $item->id,
@@ -232,6 +218,19 @@ class BookingService
         return ($specificPaid - $specificRefund) + ($genericPaid / $totalDetailsCount);
     }
 
+    private function isClosedOrCancelledStatus(string $status): bool
+    {
+        $normalized = strtolower($status);
+        $nonChargeableStatuses = [
+            strtolower(BookingDetailStatus::FIELD_CLOSURE->value),
+            strtolower(BookingDetailStatus::CANCELLED->value),
+            strtolower(BookingDetailStatus::CLOSED_FIELD_CANCELLED->value),
+            strtolower(BookingDetailStatus::CLOSED_FIELD_RESCHEDULE->value),
+        ];
+
+        return in_array($normalized, $nonChargeableStatuses, true);
+    }
+
     private function shouldSkipDetail(string $playDate, ?string $startDate, ?string $endDate): bool
     {
         if ($startDate && $endDate) {
@@ -246,7 +245,9 @@ class BookingService
     private function buildBookingItem($booking, $detail, string $fieldName): array
     {
         $totalPaid = $this->calculateTotalPaidForDetail($booking, $detail);
-        $remainingPayment = $detail->price - $totalPaid;
+        $remainingPayment = $this->isClosedOrCancelledStatus($detail->status)
+            ? 0
+            : max(0, $detail->price - $totalPaid);
 
         $refundAmount = $booking->payments->where('status', PaymentStatus::SUCCESS->value)
             ->where('payment_type', PaymentType::REFUND->value)
@@ -269,6 +270,44 @@ class BookingService
             'remaining_payment' => $remainingPayment,
             'refund_amount'     => $refundAmount
         ];
+    }
+
+    private function categorizeDetail(array &$todayBookings, array &$upcomingBookings, $booking, $detail, string $fieldName, string $today, array $filters): void
+    {
+        if ($this->shouldSkipDetail($detail->play_date, $filters['start_date'] ?? null, $filters['end_date'] ?? null)) {
+            return;
+        }
+
+        $bookingItem = $this->buildBookingItem($booking, $detail, $fieldName);
+
+        if ($this->hasActiveFilters($filters) || $detail->play_date === $today) {
+            $todayBookings[] = $bookingItem;
+            return;
+        }
+
+        if ($detail->play_date > $today) {
+            $upcomingBookings[] = $bookingItem;
+        }
+    }
+
+    private function hasActiveFilters(array $filters): bool
+    {
+        return !empty($filters['start_date']) || !empty($filters['end_date']) || !empty($filters['search']);
+    }
+
+    private function countClosedAffectedBookings(array $fieldIds, mixed $filterFieldId): int
+    {
+        $query = BookingDetail::query()->where('status', BookingDetailStatus::FIELD_CLOSURE->value);
+
+        if (!empty($fieldIds)) {
+            $query->whereHas('booking', fn($q) => $q->whereIn('fk_field_id', $fieldIds));
+        }
+
+        if (!empty($filterFieldId)) {
+            $query->whereHas('booking', fn($q) => $q->where('fk_field_id', $filterFieldId));
+        }
+
+        return $query->count();
     }
 
     private function validateAndCalculateDetails(int $fieldId, array $details): int
@@ -317,7 +356,6 @@ class BookingService
 
         return BookingDetail::query()
             ->whereHas('booking', function ($query) use ($fieldId) {
-                /** @var \Illuminate\Database\Eloquent\Builder $query */
                 $query->where('fk_field_id', $fieldId);
             })
             ->where('play_date', $detail['play_date'])
@@ -343,55 +381,5 @@ class BookingService
         }
 
         return true;
-    }
-
-    private function validateRescheduleTimeline($detail): void
-    {
-        if (strtolower($detail->status) !== BookingDetailStatus::FIELD_CLOSURE->value) {
-            $playDate = Carbon::parse($detail->play_date)->startOfDay();
-            $today = Carbon::now()->startOfDay();
-            $diffDays = $today->diffInDays($playDate, false);
-
-            if ($diffDays < 3) {
-                throw new HttpException(400, 'Reschedule ditolak: Jadwal main kurang dari H-3.');
-            }
-        }
-    }
-
-    private function determineRefundStatus($detail, string $inputStatus): string
-    {
-        $statusRefund = ucfirst(strtolower($inputStatus));
-
-        // Memastikan string input dicocokkan dengan nilai Enum yang valid
-        if (!in_array($statusRefund, [CancelRefundStatus::NONE->value, CancelRefundStatus::FULL->value, CancelRefundStatus::PARTIAL->value])) {
-            $statusRefund = CancelRefundStatus::NONE->value;
-        }
-
-        if (strtolower($detail->status) !== BookingDetailStatus::FIELD_CLOSURE->value) {
-            $playDate = Carbon::parse($detail->play_date)->startOfDay();
-            $diffDays = Carbon::now()->startOfDay()->diffInDays($playDate, false);
-            if ($diffDays < 3) {
-                return CancelRefundStatus::NONE->value;
-            }
-        }
-        return $statusRefund;
-    }
-
-    private function calculateCancelRefund($detail, string $statusRefund): float
-    {
-        if ($statusRefund === CancelRefundStatus::NONE->value) {
-            return 0;
-        }
-
-        $successfulPayments = Payment::where('fk_booking_id', $detail->fk_booking_id)
-            ->where('status', PaymentStatus::SUCCESS->value)
-            ->whereIn('payment_type', [PaymentType::DOWN_PAYMENT->value, PaymentType::FINAL_PAYMENT->value])
-            ->sum(fn($p) => $p->amount);
-
-        $refunded = Payment::where('fk_booking_detail_id', $detail->id)
-            ->where('payment_type', PaymentType::REFUND->value)->sum(fn($p) => $p->amount);
-
-        $netPaid = $successfulPayments - $refunded;
-        return ($statusRefund === CancelRefundStatus::FULL->value) ? $netPaid : ($netPaid / 2);
     }
 }
