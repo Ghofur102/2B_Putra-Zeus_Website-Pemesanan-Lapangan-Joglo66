@@ -52,7 +52,6 @@ class FieldService
         return DB::transaction(function () use ($field, $data, $request) {
             $fieldData = array_intersect_key($data, array_flip(['name', 'description', 'category']));
 
-            // 1. Ekstraksi Logika Unggah Gambar ke Fungsi Terisolasi
             $newImageUrl = $this->processImageUpdate($field, $request);
             if ($newImageUrl) {
                 $fieldData['image_url'] = $newImageUrl;
@@ -62,7 +61,6 @@ class FieldService
                 $field->update($fieldData);
             }
 
-            // 2. Ekstraksi Logika Aturan Harga ke Fungsi Terisolasi
             if ($request->has('pricing_rules')) {
                 $this->processPricingRulesUpdate($field, $request->pricing_rules);
             }
@@ -81,8 +79,15 @@ class FieldService
                 $query->where('fk_field_id', $fieldId);
             })
             ->where('play_date', $date)
-            ->whereNotIn('status', [BookingDetailStatus::CANCELLED->value, BookingDetailStatus::FIELD_CLOSURE->value])
+            ->whereNotIn('status', [
+                BookingDetailStatus::CANCELLED->value,
+                BookingDetailStatus::FIELD_CLOSURE->value,
+                BookingDetailStatus::CLOSED_FIELD_CANCELLED->value,
+                BookingDetailStatus::CLOSED_FIELD_RESCHEDULE->value
+            ])
             ->get(['start_play_time', 'end_play_time']);
+
+        $closures = $this->getFieldClosuresForDate($fieldId, $date);
 
         $availableSlots = [];
 
@@ -101,11 +106,18 @@ class FieldService
                     break;
                 }
 
+                $slotStartDateTime = $date . ' ' . $slotStart;
+                $slotEndDateTime = $date . ' ' . $slotEnd;
+
+                $isOccupiedByBooking = $this->isSlotOccupied($slotStart, $slotEnd, $occupied);
+                $isClosedByClosure = $this->isSlotClosedByClosure($slotStartDateTime, $slotEndDateTime, $closures);
+
                 $availableSlots[] = [
                     'start'        => $slotStart,
                     'end'          => $slotEnd,
                     'price'        => $pricing->price,
-                    'is_available' => !$this->isSlotOccupied($slotStart, $slotEnd, $occupied)
+                    'is_available' => !$isOccupiedByBooking && !$isClosedByClosure,
+                    'is_closed'    => $isClosedByClosure,
                 ];
 
                 $current->addHour();
@@ -159,6 +171,28 @@ class FieldService
                 'affected_bookings' => $affectedBookings
             ];
         });
+    }
+
+    private function getFieldClosuresForDate(int $fieldId, string $date): \Illuminate\Support\Collection
+    {
+        $dayStart = Carbon::parse($date)->startOfDay()->format('Y-m-d H:i:s');
+        $dayEnd = Carbon::parse($date)->endOfDay()->format('Y-m-d H:i:s');
+
+        return DB::table('field_closures')
+            ->where('fk_field_id', $fieldId)
+            ->where('field_closure_start_time', '<', $dayEnd)
+            ->where('field_closure_end_time', '>', $dayStart)
+            ->get(['field_closure_start_time', 'field_closure_end_time']);
+    }
+
+    private function isSlotClosedByClosure(string $slotStartDateTime, string $slotEndDateTime, $closures): bool
+    {
+        foreach ($closures as $closure) {
+            if ($closure->field_closure_start_time < $slotEndDateTime && $closure->field_closure_end_time > $slotStartDateTime) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function processImageUpdate(Field $field, $request): ?string
@@ -232,7 +266,7 @@ class FieldService
     private function isSlotOccupied(string $slotStart, string $slotEnd, $occupied): bool
     {
         foreach ($occupied as $booking) {
-            /** @var BookingDetail $booking */ // Type-hinting untuk IDE autocomplete
+            /** @var BookingDetail $booking */
             $cond1 = ($slotStart >= $booking->start_play_time && $slotStart < $booking->end_play_time);
             $cond2 = ($slotEnd > $booking->start_play_time && $slotEnd <= $booking->end_play_time);
             $cond3 = ($slotStart <= $booking->start_play_time && $slotEnd >= $booking->end_play_time);

@@ -13,8 +13,24 @@ class Expense extends Model
     protected $table = 'expenses';
 
     protected $fillable = [
-        'fk_field_id', 'fk_user_id', 'category', 'amount', 'expense_date', 'proof_photo', 'generate_at',
+        'fk_field_id',
+        'fk_user_id',
+        'name',
+        'category',
+        'quantity',
+        'unit_price',
+        'expense_date',
+        'proof_photo',
+        'note',
+        'generate_at',
     ];
+
+    protected $appends = ['amount'];
+
+    public function getAmountAttribute(): int
+    {
+        return (int) ($this->quantity * $this->unit_price);
+    }
 
     public function field(): BelongsTo
     {

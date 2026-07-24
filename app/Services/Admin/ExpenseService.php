@@ -5,6 +5,7 @@ namespace App\Services\Admin;
 use App\Models\Expense;
 use App\Enums\UserRole;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ExpenseService
 {
@@ -17,16 +18,19 @@ class ExpenseService
         }
 
         return $query->latest('expense_date')->get()->map(function ($item) {
-            /** @var Expense $item */ // Mengunci autocomplete properti model di IDE
+            /** @var Expense $item */
             return [
-                'id'       => $item->id,
-                'title'    => $item->category,
-                'category' => $item->category,
-                'amount'   => (int)$item->amount,
-                'date'     => $item->expense_date,
-                'note'     => $item->note ?? '-',
-                'proof'    => !empty($item->proof_photo),
-                'image'    => $item->proof_photo ? asset('storage/' . $item->proof_photo) : null,
+                'id'         => $item->id,
+                'name'       => $item->name,
+                'title'      => $item->name,
+                'category'   => $item->category,
+                'quantity'   => (int)$item->quantity,
+                'unit_price' => (int)$item->unit_price,
+                'amount'     => $item->amount,
+                'date'       => $item->expense_date,
+                'note'       => $item->note ?? '-',
+                'proof'      => !empty($item->proof_photo),
+                'image'      => $item->proof_photo ? asset('storage/' . $item->proof_photo) : null,
             ];
         });
     }
@@ -61,8 +65,10 @@ class ExpenseService
         return Expense::create([
             'fk_field_id'  => $fieldId,
             'fk_user_id'   => $user->id,
+            'name'         => $data['name'],
             'category'     => $data['category'],
-            'amount'       => $data['nominal'],
+            'quantity'     => $data['quantity'],
+            'unit_price'   => $data['unit_price'],
             'expense_date' => $data['date'],
             'proof_photo'  => $imagePath,
             'note'         => $data['note'] ?? null,
@@ -70,11 +76,41 @@ class ExpenseService
         ]);
     }
 
+    public function updateExpense(int $id, array $data): bool
+    {
+        $expense = Expense::query()->find($id);
+        if (!$expense) {
+            return false;
+        }
+
+        $updateData = [
+            'name'         => $data['name'],
+            'category'     => $data['category'],
+            'quantity'     => $data['quantity'],
+            'unit_price'   => $data['unit_price'],
+            'expense_date' => $data['date'],
+            'note'         => $data['note'] ?? null,
+        ];
+
+        if (isset($data['image'])) {
+            if ($expense->proof_photo && Storage::disk('public')->exists($expense->proof_photo)) {
+                Storage::disk('public')->delete($expense->proof_photo);
+            }
+            $updateData['proof_photo'] = $data['image']->store('expenses', 'public');
+        }
+
+        return (bool) $expense->update($updateData);
+    }
+
     public function deleteExpense(int $id): bool
     {
         $expense = Expense::query()->find($id);
         if (!$expense) {
             return false;
+        }
+
+        if ($expense->proof_photo && Storage::disk('public')->exists($expense->proof_photo)) {
+            Storage::disk('public')->delete($expense->proof_photo);
         }
 
         return (bool) $expense->delete();

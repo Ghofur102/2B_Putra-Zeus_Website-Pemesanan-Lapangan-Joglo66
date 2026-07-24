@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\StoreExpenseRequest;
 use App\Services\Admin\ExpenseService;
 use App\Enums\UserRole;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Throwable;
 
 class ExpenseController extends Controller
@@ -68,46 +68,79 @@ class ExpenseController extends Controller
         return response()->json($data, $status);
     }
 
-    public function addExpense(StoreExpenseRequest $request): JsonResponse
+    public function addExpense(Request $request): JsonResponse
     {
-        $status = 201;
-        $data = [];
+        $validator = Validator::make($request->all(), [
+            'name'       => 'required|string|max:100',
+            'category'   => 'required|string|max:50',
+            'quantity'   => 'required|numeric|min:1',
+            'unit_price' => 'required|numeric|min:0',
+            'date'       => 'required|date_format:Y-m-d',
+            'note'       => 'nullable|string',
+            'image'      => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
+        }
 
         try {
-            $expense = $this->expenseService->createExpense($request->validated(), $request->user());
+            $expense = $this->expenseService->createExpense($validator->validated(), $request->user());
 
-            $data = [
+            return response()->json([
                 'success' => true,
                 'message' => 'Data pengeluaran berhasil disimpan.',
                 'data'    => $expense
-            ];
+            ], 201);
         } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal menyimpan data ke database.'];
+            return response()->json(['success' => false, 'message' => 'Gagal menyimpan data ke database.'], 500);
+        }
+    }
+
+    public function updateExpense(Request $request, $id): JsonResponse
+    {
+        $response = null;
+        $validator = Validator::make($request->all(), [
+            'name'       => 'required|string|max:100',
+            'category'   => 'required|string|max:50',
+            'quantity'   => 'required|numeric|min:1',
+            'unit_price' => 'required|numeric|min:0',
+            'date'       => 'required|date_format:Y-m-d',
+            'note'       => 'nullable|string',
+            'image'      => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        if ($validator->fails()) {
+            $response = response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
         }
 
-        return response()->json($data, $status);
+        try {
+            $updated = $this->expenseService->updateExpense((int)$id, $validator->validated(), $request->user());
+
+            if (!$updated) {
+                $response = response()->json(['success' => false, 'message' => 'Data pengeluaran tidak ditemukan.'], 404);
+            }
+
+            $response = response()->json(['success' => true, 'message' => 'Data pengeluaran berhasil diperbarui.'], 200);
+        } catch (Throwable $e) {
+            $response = response()->json(['success' => false, 'message' => 'Gagal mengupdate data.'], 500);
+        }
+
+        return $response;
     }
 
     public function destroy(Request $request, $id): JsonResponse
     {
-        $status = 200;
-        $data = [];
-
         try {
             $deleted = $this->expenseService->deleteExpense((int)$id);
 
             if (!$deleted) {
-                $status = 404;
-                $data = ['success' => false, 'message' => 'Data tidak ditemukan.'];
-            } else {
-                $data = ['success' => true, 'message' => 'Data pengeluaran berhasil dihapus.'];
+                return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
             }
-        } catch (Throwable $e) {
-            $status = 500;
-            $data = ['success' => false, 'message' => 'Gagal menghapus data.'];
-        }
 
-        return response()->json($data, $status);
+            return response()->json(['success' => true, 'message' => 'Data pengeluaran berhasil dihapus.'], 200);
+        } catch (Throwable $e) {
+            return response()->json(['success' => false, 'message' => 'Gagal menghapus data.'], 500);
+        }
     }
 }
